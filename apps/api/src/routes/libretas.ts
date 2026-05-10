@@ -1,0 +1,295 @@
+import { Router, Request, Response } from 'express';
+import { body } from 'express-validator';
+import { prisma } from '../lib/prisma';
+import { authenticate, requirePermiso } from '../middleware/auth';
+import { handleValidation } from '../middleware/validate';
+import { registrarAuditoria } from '../lib/audit';
+
+const router = Router();
+router.use(authenticate);
+
+// GET /libretas
+router.get('/', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { estado, cliente_id, page = '1', limit = '20' } = req.query;
+    const pageNum = parseInt(String(page));
+    const limitNum = parseInt(String(limit));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: Record<string, unknown> = {};
+    if (estado) where.estado = estado;
+    if (cliente_id) where.cliente_id = parseInt(String(cliente_id));
+
+    const [libretas, total] = await Promise.all([
+      prisma.libreta.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { creado_en: 'desc' },
+        include: { cliente: true, empresa: true },
+      }),
+      prisma.libreta.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      data: libretas,
+      meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al obtener libretas' });
+  }
+});
+
+// GET /libretas/:id
+router.get('/:id', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const libreta = await prisma.libreta.findUnique({
+      where: { id: parseInt(req.params.id) },
+      include: { cliente: true, empresa: true },
+    });
+    if (!libreta) {
+      res.status(404).json({ success: false, message: 'Libreta no encontrada' });
+      return;
+    }
+    res.json({ success: true, data: libreta });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al obtener libreta' });
+  }
+});
+
+// GET /libretas/:id/movimientos
+router.get('/:id/movimientos', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const { page = '1', limit = '30' } = req.query;
+    const pageNum = parseInt(String(page));
+    const limitNum = parseInt(String(limit));
+    const skip = (pageNum - 1) * limitNum;
+
+    const [movimientos, total] = await Promise.all([
+      prisma.libretaMovimiento.findMany({
+        where: { libreta_id: id },
+        skip,
+        take: limitNum,
+        orderBy: { fecha_movimiento: 'desc' },
+        include: { venta: true, pago: true, usuario: { select: { nombre: true, apellido: true } } },
+      }),
+      prisma.libretaMovimiento.count({ where: { libreta_id: id } }),
+    ]);
+
+    res.json({
+      success: true,
+      data: movimientos,
+      meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al obtener movimientos' });
+  }
+});
+
+// POST /libretas
+router.post(
+  '/',
+  requirePermiso('LIBRETAS:CREAR'),
+  [
+    body('cliente_id').isInt().withMessage('Cliente requerido'),
+    body('limite_credito').isInt({ min: 0 }).withMessage('Límite inválido'),
+    handleValidation,
+  ],
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { cliente_id, empresa_id, tipo, limite_credito, dia_corte, dia_vencimiento } = req.body;
+
+      // Check if cliente already has active libreta
+      const existente = await prisma.libreta.findFirst({
+        where: { cliente_id, estado: 'ACTIVA' },
+      });
+      if (existente) {
+        res.status(400).json({ success: false, message: 'El cliente ya tiene una libreta activa' });
+        return;
+      }
+
+      const libreta = await prisma.libreta.create({
+        data: {
+          cliente_id,
+          empresa_id: empresa_id || undefined,
+          tipo: tipo || 'PERSONAL',
+          limite_credito: BigInt(limite_credito),
+          saldo_actual: BigInt(0),
+          saldo_vencido: BigInt(0),
+          dia_corte,
+          dia_vencimiento,
+          estado: 'ACTIVA',
+        },
+        include: { cliente: true },
+      });
+
+      res.status(201).json({ success: true, message: 'Libreta creada', data: libreta });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error al crear libreta' });
+    }
+  }
+);
+
+// PUT /libretas/:id
+router.put('/:id', requirePermiso('LIBRETAS:EDITAR'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const data: Record<string, unknown> = { ...req.body };
+    if (req.body.limite_credito !== undefined) data.limite_credito = BigInt(req.body.limite_credito);
+
+    const libreta = await prisma.libreta.update({ where: { id }, data, include: { cliente: true } });
+    res.json({ success: true, message: 'Libreta actualizada', data: libreta });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al actualizar libreta' });
+  }
+});
+
+// POST /libretas/:id/pago
+router.post(
+  '/:id/pago',
+  requirePermiso('LIBRETAS:EDITAR'),
+  [
+    body('monto').isInt({ min: 1 }).withMessage('Monto inválido'),
+    body('forma_pago').notEmpty().withMessage('Forma de pago requerida'),
+    handleValidation,
+  ],
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const id = parseInt(req.params.id);
+      const { monto, forma_pago, referencia_externa, voucher } = req.body;
+
+      const libreta = await prisma.libreta.findUnique({
+        where: { id },
+        include: { cliente: true },
+      });
+      if (!libreta) {
+        res.status(404).json({ success: false, message: 'Libreta no encontrada' });
+        return;
+      }
+      if (libreta.estado !== 'ACTIVA') {
+        res.status(400).json({ success: false, message: 'Libreta no activa' });
+        return;
+      }
+
+      const montoBigInt = BigInt(monto);
+      const nuevoSaldo = libreta.saldo_actual - montoBigInt;
+
+      const result = await prisma.$transaction(async (tx) => {
+        const pago = await tx.pago.create({
+          data: {
+            cliente_id: libreta.cliente_id,
+            libreta_id: id,
+            forma_pago,
+            monto: montoBigInt,
+            estado: 'CONFIRMADO',
+            referencia_externa,
+            voucher,
+          },
+        });
+
+        await tx.libreta.update({
+          where: { id },
+          data: { saldo_actual: nuevoSaldo < BigInt(0) ? BigInt(0) : nuevoSaldo },
+        });
+
+        await tx.libretaMovimiento.create({
+          data: {
+            libreta_id: id,
+            pago_id: pago.id,
+            tipo_movimiento: 'PAGO',
+            descripcion: `Pago con ${forma_pago}`,
+            monto_debe: BigInt(0),
+            monto_haber: montoBigInt,
+            saldo_resultante: nuevoSaldo < BigInt(0) ? BigInt(0) : nuevoSaldo,
+            usuario_id: req.user!.userId,
+          },
+        });
+
+        return pago;
+      });
+
+      await registrarAuditoria({
+        usuarioId: req.user!.userId,
+        modulo: 'LIBRETAS',
+        accion: 'PAGO',
+        registroId: id,
+        valorNuevo: { monto, forma_pago },
+        ip: req.ip,
+      });
+
+      res.json({ success: true, message: 'Pago registrado', data: result });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error al registrar pago' });
+    }
+  }
+);
+
+// POST /libretas/:id/ajuste
+router.post(
+  '/:id/ajuste',
+  requirePermiso('LIBRETAS:EDITAR'),
+  [
+    body('monto').isInt().withMessage('Monto inválido'),
+    body('tipo').isIn(['CARGO', 'ABONO', 'AJUSTE']).withMessage('Tipo inválido'),
+    body('descripcion').notEmpty().withMessage('Descripción requerida'),
+    handleValidation,
+  ],
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const id = parseInt(req.params.id);
+      const { monto, tipo, descripcion } = req.body;
+
+      const libreta = await prisma.libreta.findUnique({ where: { id } });
+      if (!libreta) {
+        res.status(404).json({ success: false, message: 'Libreta no encontrada' });
+        return;
+      }
+
+      const montoBigInt = BigInt(Math.abs(monto));
+      let nuevoSaldo = libreta.saldo_actual;
+      let montoDebe = BigInt(0);
+      let montoHaber = BigInt(0);
+
+      if (tipo === 'CARGO') {
+        nuevoSaldo += montoBigInt;
+        montoDebe = montoBigInt;
+      } else {
+        nuevoSaldo -= montoBigInt;
+        montoHaber = montoBigInt;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.libreta.update({
+          where: { id },
+          data: { saldo_actual: nuevoSaldo < BigInt(0) ? BigInt(0) : nuevoSaldo },
+        });
+        await tx.libretaMovimiento.create({
+          data: {
+            libreta_id: id,
+            tipo_movimiento: tipo,
+            descripcion,
+            monto_debe: montoDebe,
+            monto_haber: montoHaber,
+            saldo_resultante: nuevoSaldo < BigInt(0) ? BigInt(0) : nuevoSaldo,
+            usuario_id: req.user!.userId,
+          },
+        });
+      });
+
+      res.json({ success: true, message: 'Ajuste registrado' });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error al registrar ajuste' });
+    }
+  }
+);
+
+export default router;
