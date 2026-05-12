@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Sistema de ventas, reservas, menú, stock, libreta y pagos para comedor en Paraguay. Moneda: Guaraníes (PYG, enteros sin decimales). El README.md contiene la especificación funcional completa con 35 secciones de detalle.
 
-**Estado actual:** MVP Fase 1 implementado (usuarios/roles, clientes, productos, menús, reservas, ventas, libretas, stock básico, compras, reportes). Ver sección "Roadmap" del README para las fases siguientes.
+**Estado actual:** Fases 1–6 implementadas. Ver sección "Roadmap" abajo para detalle de cada fase.
 
 **Demo:** `admin@comedor.com` / `admin123`
 
@@ -87,12 +87,16 @@ npm run build
 ```
 comedor/
 ├── apps/
-│   ├── api/          # Express + TypeScript (puerto 3001)
-│   └── web-admin/    # React + Vite + Tailwind (puerto 3000 en prod, 5173 en dev)
+│   ├── api/           # Express + TypeScript (puerto 3001)
+│   ├── web-admin/     # React + Vite + Tailwind — panel admin (puerto 3000 prod / 5173 dev)
+│   └── web-cliente/   # React + Vite + Tailwind — portal cliente (puerto 3002 prod / 5174 dev)
 ├── packages/
-│   └── database/     # Prisma schema + seed
-└── docker/           # nginx.conf, postgres init
+│   └── database/      # Prisma schema + seed
+└── docker/            # nginx.conf, postgres init
 ```
+
+**Scripts raíz adicionales:**
+- `npm run dev:cliente` — inicia solo el portal del cliente
 
 ### Backend (`apps/api/`)
 
@@ -170,17 +174,30 @@ El sistema de permisos es `MODULO:ACCION`. Ejemplos: `VENTAS:VER`, `VENTAS:CREAR
 5. **Recetas:** al vender un producto con receta activa, se crean `StockMovimiento` (SALIDA, referencia_tipo `RECETA_VENTA`) por cada ingrediente proporcional a la cantidad vendida
 6. **Bloqueo automático de libreta:** al consultar `GET /libretas/:id`, si `estado=ACTIVA` y `saldo_actual > 0` y `hoy.día > dia_vencimiento`, se bloquea automáticamente y registra auditoría; al pagar y el saldo llega a 0, se desbloquea automáticamente
 
+### Nuevos módulos (Fases 3–6)
+
+- `src/routes/empresas.ts` — CRUD empresas/convenios; `GET /empresas/:id` incluye clientes y libretas agrupadas
+- `src/routes/notificaciones.ts` — cola de notificaciones; `POST /notificaciones/envio-masivo` crea recordatorios para todos los clientes con saldo vencido
+- `src/routes/pagos.ts` — webhooks en `/webhook/bancard` y `/webhook/pagopar` sin `authenticate` (llamados por pasarelas externas); `GET /pagos/conciliacion` agrupa por forma_pago
+- `src/routes/facturas.ts` — numeración secuencial desde tabla `Configuracion` clave `FACTURA_ULTIMO_NUMERO`; `POST /facturas/:id/reenviar-sifen` es placeholder hasta configurar credenciales
+- `src/lib/pdf.ts` — PDF estado de cuenta libreta con pdfkit
+- `src/lib/facturaPdf.ts` — PDF factura fiscal con desglose IVA 5%/10%/exento
+
+### Portal del cliente (`apps/web-cliente/`)
+
+App React separada con diseño mobile-first, esquema de color teal. Token guardado como `cliente_token` en localStorage (distinto del `token` del admin). Rutas: `/login` → `/menu` → `/reservar?menu_id=X` → `/mis-reservas` → `/mi-libreta` → `/pagar`. Corre en puerto 5174 (dev) o 3002 (Docker).
+
 ---
 
 ## Roadmap de implementación (del README)
 
 - **Fase 1** ✅ Núcleo operativo (usuarios/roles, clientes, productos, menús, reservas, ventas, libretas, stock, compras, reportes)
 - **Fase 2** ✅ Recetas CRUD + descuento automático de ingredientes al vender + producción sugerida en cocina
-- **Fase 3** 🔲 Parcial — bloqueo/desbloqueo automático de libreta implementado; falta: PDF estados de cuenta, libretas por empresa, recordatorios automáticos
-- **Fase 4** 🔲 Pasarela de pagos online (Bancard/Pagopar), webhooks, conciliación
-- **Fase 5** 🔲 Facturación electrónica Paraguay (SIFEN/DNIT)
-- **Fase 6** 🔲 Portal del cliente (web pública para reservas y pago de deuda)
-- **Fase 7** 🔲 Predicción de demanda, app móvil, integración con balanza
+- **Fase 3** ✅ PDF estado de cuenta, módulo Empresas con libretas por empresa, sistema de notificaciones con envío masivo, VentaDetalle con anulación, bloqueo/desbloqueo automático de libreta
+- **Fase 4** ✅ Estructura completa de pagos: webhooks Bancard/Pagopar, POS manual, conciliación, confirmación/rechazo manual (conectar credenciales reales en .env)
+- **Fase 5** ✅ Facturación: numeración secuencial, PDF fiscal con IVA 5%/10%/exento, anulación con nota de crédito, configuración tributaria, capa SIFEN lista (activar con SIFEN_HABILITADO=true en Configuracion)
+- **Fase 6** ✅ Portal del cliente (`apps/web-cliente`): login, menú del día, reservar, mis reservas, mi libreta, pago online
+- **Fase 7** 🔲 Predicción de demanda, app móvil nativa, integración con balanza (requiere hardware)
 
 ---
 
