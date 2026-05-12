@@ -35,6 +35,9 @@ import { UsuariosPage } from './pages/usuarios/UsuariosPage';
 import { AuditoriaPage } from './pages/auditoria/AuditoriaPage';
 import { RecetasPage } from './pages/recetas/RecetasPage';
 import { RecetaForm } from './pages/recetas/RecetaForm';
+import EmpresasPage from './pages/empresas/EmpresasPage';
+import EmpresaDetalle from './pages/empresas/EmpresaDetalle';
+import NotificacionesPage from './pages/notificaciones/NotificacionesPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -116,6 +119,13 @@ function AppRoutes() {
         <Route path="/reportes/ventas" element={<ReporteVentas />} />
         <Route path="/reportes/stock" element={<ReporteStock />} />
         <Route path="/reportes/libretas" element={<ReporteLibreta />} />
+
+        {/* Empresas */}
+        <Route path="/empresas" element={<EmpresasPage />} />
+        <Route path="/empresas/:id" element={<EmpresaDetalle />} />
+
+        {/* Notificaciones */}
+        <Route path="/notificaciones" element={<NotificacionesPage />} />
 
         {/* Admin */}
         <Route path="/usuarios" element={<UsuariosPage />} />
