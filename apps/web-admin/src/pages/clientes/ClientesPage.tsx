@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 import { clientesApi } from '../../api/endpoints';
 import { Button } from '../../components/UI/Button';
 import { Input } from '../../components/UI/Input';
@@ -23,6 +24,7 @@ interface Cliente {
 }
 
 export function ClientesPage() {
+  const { hasPermiso } = useAuth();
   const navigate = useNavigate();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,9 +99,11 @@ export function ClientesPage() {
           <Link to={`/clientes/${row.id}`} className="text-blue-600 hover:text-blue-700 text-sm">
             Ver
           </Link>
-          <Link to={`/clientes/${row.id}/editar`} className="text-gray-600 hover:text-gray-700 text-sm">
-            Editar
-          </Link>
+          {hasPermiso('CLIENTES:EDITAR') && (
+            <Link to={`/clientes/${row.id}/editar`} className="text-gray-600 hover:text-gray-700 text-sm">
+              Editar
+            </Link>
+          )}
         </div>
       ),
     },
@@ -112,12 +116,14 @@ export function ClientesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
           <p className="text-gray-500 text-sm">Gestión de clientes del sistema</p>
         </div>
-        <Button onClick={() => navigate('/clientes/nuevo')}>
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Nuevo cliente
-        </Button>
+        {hasPermiso('CLIENTES:CREAR') && (
+          <Button onClick={() => navigate('/clientes/nuevo')}>
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nuevo cliente
+          </Button>
+        )}
       </div>
 
       {error && <Alert type="error" onClose={() => setError('')}>{error}</Alert>}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { stockApi, productosApi } from '../../api/endpoints';
 import { Button } from '../../components/UI/Button';
+import { PageBack } from '../../components/UI/PageBack';
 import { Alert } from '../../components/UI/Alert';
 import { PageLoader } from '../../components/UI/LoadingSpinner';
 import { Pagination } from '../../components/UI/Pagination';
@@ -46,7 +47,7 @@ export function KardexPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/stock')}>← Volver</Button>
+        <PageBack to="/stock" />
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Kardex - {String(producto.nombre)}</h1>
           <p className="text-gray-500 text-sm">Historial de movimientos de stock</p>

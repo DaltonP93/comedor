@@ -4,6 +4,22 @@ import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(process.cwd(), 'uploads', 'productos');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+  },
+});
+const upload = multer({ storage });
 
 const router = Router();
 router.use(authenticate);
@@ -139,6 +155,28 @@ router.put('/:id', requirePermiso('PRODUCTOS:EDITAR'), async (req: Request, res:
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: 'Error al actualizar producto' });
+  }
+});
+
+// POST /productos/:id/imagen
+router.post('/:id/imagen', requirePermiso('PRODUCTOS:EDITAR'), upload.single('imagen'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!req.file) {
+      res.status(400).json({ success: false, message: 'No se envió ninguna imagen' });
+      return;
+    }
+
+    const imagen_url = `/uploads/productos/${req.file.filename}`;
+    const producto = await prisma.producto.update({
+      where: { id },
+      data: { imagen_url },
+    });
+
+    res.json({ success: true, message: 'Imagen subida', data: producto });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al subir imagen' });
   }
 });
 

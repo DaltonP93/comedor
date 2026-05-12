@@ -1,9 +1,9 @@
-import React from 'react';
+import type { ReactNode } from 'react';
 
 interface Column<T> {
   key: string;
   header: string;
-  render?: (row: T) => React.ReactNode;
+  render?: (row: T) => ReactNode;
   className?: string;
 }
 
@@ -15,7 +15,7 @@ interface TableProps<T> {
   onRowClick?: (row: T) => void;
 }
 
-export function Table<T extends Record<string, unknown>>({
+export function Table<T extends object>({
   columns,
   data,
   loading = false,
@@ -64,7 +64,7 @@ export function Table<T extends Record<string, unknown>>({
               >
                 {columns.map((col) => (
                   <td key={col.key} className={`px-6 py-4 whitespace-nowrap text-sm ${col.className || ''}`}>
-                    {col.render ? col.render(row) : String(row[col.key] ?? '')}
+                    {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '')}
                   </td>
                 ))}
               </tr>

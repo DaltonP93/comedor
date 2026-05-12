@@ -12,6 +12,8 @@ router.get('/dashboard', requirePermiso('DASHBOARD:VER'), async (req: Request, r
     hoy.setHours(0, 0, 0, 0);
     const manana = new Date(hoy);
     manana.setDate(manana.getDate() + 1);
+    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0, 23, 59, 59, 999);
 
     const [
       ventasHoy,
@@ -19,6 +21,16 @@ router.get('/dashboard', requirePermiso('DASHBOARD:VER'), async (req: Request, r
       stockCritico,
       libretasVencidas,
       ultimasVentas,
+      menusHoyTotal,
+      menusPublicadosHoy,
+      ventasMes,
+      reservasPendientesHoy,
+      clientesActivos,
+      productosActivos,
+      facturasHoy,
+      ventasSinFacturarHoy,
+      libretasActivas,
+      comprasMes,
     ] = await Promise.all([
       prisma.venta.aggregate({
         where: { creado_en: { gte: hoy, lt: manana }, estado: { not: 'ANULADA' } },
@@ -50,6 +62,30 @@ router.get('/dashboard', requirePermiso('DASHBOARD:VER'), async (req: Request, r
         orderBy: { creado_en: 'desc' },
         take: 10,
         include: { cliente: true, usuario: { select: { nombre: true } } },
+      }),
+      prisma.menu.count({ where: { fecha: { gte: hoy, lt: manana } } }),
+      prisma.menu.count({ where: { fecha: { gte: hoy, lt: manana }, estado: 'PUBLICADO' } }),
+      prisma.venta.aggregate({
+        where: { creado_en: { gte: inicioMes, lte: finMes }, estado: { not: 'ANULADA' } },
+        _sum: { total: true },
+        _count: { id: true },
+      }),
+      prisma.reserva.count({
+        where: { estado: 'PENDIENTE', creado_en: { gte: hoy, lt: manana } },
+      }),
+      prisma.cliente.count({ where: { estado: 'ACTIVO' } }),
+      prisma.producto.count({ where: { activo: true } }),
+      prisma.factura.count({ where: { fecha: { gte: hoy, lt: manana } } }),
+      prisma.venta.count({
+        where: {
+          creado_en: { gte: hoy, lt: manana },
+          estado: { not: 'ANULADA' },
+          facturada: false,
+        },
+      }),
+      prisma.libreta.count({ where: { estado: 'ACTIVA' } }),
+      prisma.compra.count({
+        where: { creado_en: { gte: inicioMes, lte: finMes } },
       }),
     ]);
 
@@ -83,6 +119,21 @@ router.get('/dashboard', requirePermiso('DASHBOARD:VER'), async (req: Request, r
           cantidad: libretasVencidas._count.id,
         },
         ultimas_ventas: ultimasVentas,
+        menus_del_dia: {
+          total: menusHoyTotal,
+          publicados: menusPublicadosHoy,
+        },
+        ventas_mes: {
+          total: Number(ventasMes._sum.total ?? 0),
+          cantidad: ventasMes._count.id,
+        },
+        reservas_pendientes_hoy: reservasPendientesHoy,
+        clientes_activos: clientesActivos,
+        productos_activos: productosActivos,
+        facturas_emitidas_hoy: facturasHoy,
+        ventas_sin_facturar_hoy: ventasSinFacturarHoy,
+        libretas_activas: libretasActivas,
+        compras_mes: comprasMes,
       },
     });
   } catch (error) {

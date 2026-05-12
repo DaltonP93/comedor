@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { menusApi } from '../../api/endpoints';
 import { Button } from '../../components/UI/Button';
+import { PageBack } from '../../components/UI/PageBack';
 import { Badge, estadoBadge } from '../../components/UI/Badge';
 import { PageLoader } from '../../components/UI/LoadingSpinner';
 import { Alert } from '../../components/UI/Alert';
@@ -10,7 +11,7 @@ import { formatGs, formatFecha, formatFechaHora, getErrorMessage } from '../../l
 export function MenuDetalle() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [menu, setMenu] = useState<Record<string, unknown> | null>(null);
+  const [menu, setMenu] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -63,8 +64,8 @@ export function MenuDetalle() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/menus')}>← Volver</Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <PageBack to="/menus" />
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900">{String(menu.titulo)}</h1>

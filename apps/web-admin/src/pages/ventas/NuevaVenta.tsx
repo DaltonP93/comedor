@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ventasApi, productosApi, clientesApi } from '../../api/endpoints';
 import { Button } from '../../components/UI/Button';
+import { PageBack } from '../../components/UI/PageBack';
 import { Input } from '../../components/UI/Input';
 import { Select } from '../../components/UI/Select';
 import { Alert } from '../../components/UI/Alert';
@@ -189,10 +190,11 @@ export function NuevaVenta() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/ventas')}>← Volver</Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <PageBack to="/ventas" />
         <h1 className="text-2xl font-bold text-gray-900">Nueva Venta</h1>
         <button
+          type="button"
           onClick={() => setModoKilo(!modoKilo)}
           className={`ml-auto px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${modoKilo ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-700'}`}
         >

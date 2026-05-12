@@ -15,6 +15,8 @@ import { ProductoForm } from './pages/productos/ProductoForm';
 import { MenusPage } from './pages/menus/MenusPage';
 import { MenuForm } from './pages/menus/MenuForm';
 import { MenuDetalle } from './pages/menus/MenuDetalle';
+import { PortalModulosPage } from './pages/menus/PortalModulosPage';
+import { IntegracionesPage } from './pages/integraciones/IntegracionesPage';
 import { ReservasPage } from './pages/reservas/ReservasPage';
 import { ReservaDetalle } from './pages/reservas/ReservaDetalle';
 import { VentasPage } from './pages/ventas/VentasPage';
@@ -32,6 +34,16 @@ import { ReporteLibreta } from './pages/reportes/ReporteLibreta';
 import { ConfiguracionPage } from './pages/configuracion/ConfiguracionPage';
 import { UsuariosPage } from './pages/usuarios/UsuariosPage';
 import { AuditoriaPage } from './pages/auditoria/AuditoriaPage';
+
+// New pages
+import { ProveedoresPage } from './pages/proveedores/ProveedoresPage';
+import { ComprasPage } from './pages/compras/ComprasPage';
+import { NuevaCompra } from './pages/compras/NuevaCompra';
+import { EmpresasPage } from './pages/empresas/EmpresasPage';
+import { RecetasPage } from './pages/recetas/RecetasPage';
+import { RolesPage } from './pages/roles/RolesPage';
+import { SucursalesPage } from './pages/sucursales/SucursalesPage';
+import { CajasPage } from './pages/cajas/CajasPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -76,11 +88,12 @@ function AppRoutes() {
         <Route path="/productos/nuevo" element={<ProductoForm />} />
         <Route path="/productos/:id/editar" element={<ProductoForm />} />
 
-        {/* Menús */}
+        {/* Menús del comedor + portal de módulos */}
         <Route path="/menus" element={<MenusPage />} />
+        <Route path="/menus/portal" element={<PortalModulosPage />} />
         <Route path="/menus/nuevo" element={<MenuForm />} />
-        <Route path="/menus/:id/editar" element={<MenuForm />} />
-        <Route path="/menus/:id" element={<MenuDetalle />} />
+        <Route path="/menus/:id(\\d+)/editar" element={<MenuForm />} />
+        <Route path="/menus/:id(\\d+)" element={<MenuDetalle />} />
 
         {/* Reservas */}
         <Route path="/reservas" element={<ReservasPage />} />
@@ -108,9 +121,26 @@ function AppRoutes() {
         <Route path="/reportes/stock" element={<ReporteStock />} />
         <Route path="/reportes/libretas" element={<ReporteLibreta />} />
 
+        {/* Proveedores */}
+        <Route path="/proveedores" element={<ProveedoresPage />} />
+
+        {/* Compras */}
+        <Route path="/compras" element={<ComprasPage />} />
+        <Route path="/compras/nueva" element={<NuevaCompra />} />
+
+        {/* Empresas */}
+        <Route path="/empresas" element={<EmpresasPage />} />
+
+        {/* Recetas */}
+        <Route path="/recetas" element={<RecetasPage />} />
+
         {/* Admin */}
         <Route path="/usuarios" element={<UsuariosPage />} />
+        <Route path="/roles" element={<RolesPage />} />
+        <Route path="/sucursales" element={<SucursalesPage />} />
+        <Route path="/cajas" element={<CajasPage />} />
         <Route path="/auditoria" element={<AuditoriaPage />} />
+        <Route path="/integraciones" element={<IntegracionesPage />} />
         <Route path="/configuracion" element={<ConfiguracionPage />} />
       </Route>
 

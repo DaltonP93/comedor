@@ -35,6 +35,13 @@ export const productosApi = {
   obtener: (id: number) => apiClient.get(`/productos/${id}`),
   crear: (data: Record<string, unknown>) => apiClient.post('/productos', data),
   actualizar: (id: number, data: Record<string, unknown>) => apiClient.put(`/productos/${id}`, data),
+  uploadImage: (id: number, file: File) => {
+    const formData = new FormData();
+    formData.append('imagen', file);
+    return apiClient.post(`/productos/${id}/imagen`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   eliminar: (id: number) => apiClient.delete(`/productos/${id}`),
 };
 
@@ -182,4 +189,37 @@ export const configuracionesApi = {
 // Auditoria
 export const auditoriaApi = {
   listar: (params?: Record<string, unknown>) => apiClient.get('/auditoria', { params }),
+};
+
+// Recetas
+export const recetasApi = {
+  listar: (params?: Record<string, unknown>) => apiClient.get('/recetas', { params }),
+  obtener: (id: number) => apiClient.get(`/recetas/${id}`),
+  crear: (data: Record<string, unknown>) => apiClient.post('/recetas', data),
+  actualizar: (id: number, data: Record<string, unknown>) => apiClient.put(`/recetas/${id}`, data),
+  eliminar: (id: number) => apiClient.delete(`/recetas/${id}`),
+};
+
+// Empresas
+export const empresasApi = {
+  listar: (params?: Record<string, unknown>) => apiClient.get('/empresas', { params }),
+  obtener: (id: number) => apiClient.get(`/empresas/${id}`),
+  crear: (data: Record<string, unknown>) => apiClient.post('/empresas', data),
+  actualizar: (id: number, data: Record<string, unknown>) => apiClient.put(`/empresas/${id}`, data),
+  eliminar: (id: number) => apiClient.delete(`/empresas/${id}`),
+};
+
+// Facturas
+export const facturasApi = {
+  listar: (params?: Record<string, unknown>) => apiClient.get('/facturas', { params }),
+  obtener: (id: number) => apiClient.get(`/facturas/${id}`),
+  emitir: (data: Record<string, unknown>) => apiClient.post('/facturas', data),
+  anular: (id: number, motivo: string) => apiClient.post(`/facturas/${id}/anular`, { motivo }),
+};
+
+// Notificaciones
+export const notificacionesApi = {
+  listar: (params?: Record<string, unknown>) => apiClient.get('/notificaciones', { params }),
+  crear: (data: Record<string, unknown>) => apiClient.post('/notificaciones', data),
+  actualizarEstado: (id: number, estado: string) => apiClient.put(`/notificaciones/${id}/estado`, { estado }),
 };

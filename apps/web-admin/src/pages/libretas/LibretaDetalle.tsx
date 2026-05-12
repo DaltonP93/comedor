@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { libretasApi } from '../../api/endpoints';
 import { Button } from '../../components/UI/Button';
+import { PageBack } from '../../components/UI/PageBack';
 import { Badge, estadoBadge } from '../../components/UI/Badge';
 import { PageLoader } from '../../components/UI/LoadingSpinner';
 import { Alert } from '../../components/UI/Alert';
@@ -70,7 +71,7 @@ export function LibretaDetalle() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/libretas')}>← Volver</Button>
+        <PageBack to="/libretas" />
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900">Libreta #{id}</h1>

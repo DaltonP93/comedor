@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { token, refreshToken, usuario: u } = response.data.data;
     localStorage.setItem('token', token);
     localStorage.setItem('refreshToken', refreshToken);
-    setUsuario(u as Usuario);
+    setUsuario(u as unknown as Usuario);
   };
 
   const logout = async () => {

@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
+import bcrypt from 'bcryptjs';
 
 const router = Router();
 router.use(authenticate);
@@ -158,7 +159,12 @@ router.post(
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const cliente = await prisma.cliente.create({ data: req.body });
+      const { password, ...resto } = req.body;
+      const data = { ...resto };
+      if (password) {
+        data.password_hash = await bcrypt.hash(password, 10);
+      }
+      const cliente = await prisma.cliente.create({ data });
 
       await registrarAuditoria({
         usuarioId: req.user!.userId,
@@ -191,7 +197,13 @@ router.put(
         return;
       }
 
-      const cliente = await prisma.cliente.update({ where: { id }, data: req.body });
+      const { password, ...resto } = req.body;
+      const data = { ...resto };
+      if (password) {
+        data.password_hash = await bcrypt.hash(password, 10);
+      }
+
+      const cliente = await prisma.cliente.update({ where: { id }, data });
 
       await registrarAuditoria({
         usuarioId: req.user!.userId,

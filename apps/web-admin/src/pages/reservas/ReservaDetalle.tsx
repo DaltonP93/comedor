@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { reservasApi } from '../../api/endpoints';
 import { Button } from '../../components/UI/Button';
+import { PageBack } from '../../components/UI/PageBack';
 import { Badge, estadoBadge } from '../../components/UI/Badge';
 import { PageLoader } from '../../components/UI/LoadingSpinner';
 import { Alert } from '../../components/UI/Alert';
@@ -92,7 +93,7 @@ export function ReservaDetalle() {
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/reservas')}>← Volver</Button>
+        <PageBack to="/reservas" />
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900">Reserva #{id}</h1>
@@ -133,7 +134,7 @@ export function ReservaDetalle() {
             <p className="text-xs text-gray-500">Creada</p>
             <p className="text-sm font-medium">{formatFechaHora(String(reserva.creado_en))}</p>
           </div>
-          {reserva.observacion && (
+          {Boolean(reserva.observacion) && (
             <div className="col-span-2">
               <p className="text-xs text-gray-500">Observación</p>
               <p className="text-sm">{String(reserva.observacion)}</p>
@@ -143,7 +144,7 @@ export function ReservaDetalle() {
       </div>
 
       {/* Actions */}
-      {!['CANCELADA', 'ENTREGADA'].includes(String(reserva.estado)) && (
+      {Boolean(!['CANCELADA', 'ENTREGADA'].includes(String(reserva.estado))) && (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h3 className="font-medium text-gray-900 mb-4">Acciones</h3>
           <div className="flex items-end gap-4">
@@ -160,7 +161,7 @@ export function ReservaDetalle() {
             </Button>
           </div>
           <div className="flex gap-3 mt-4">
-            {!reserva.venta_id && (
+            {!Boolean(reserva.venta_id) && (
               <Button variant="success" onClick={() => setShowVentaModal(true)}>
                 Convertir en venta
               </Button>
@@ -172,7 +173,7 @@ export function ReservaDetalle() {
         </div>
       )}
 
-      {reserva.venta_id && (
+      {Boolean(reserva.venta_id) && (
         <Alert type="success">
           Esta reserva fue convertida en venta #{String(reserva.venta_id)}
         </Alert>

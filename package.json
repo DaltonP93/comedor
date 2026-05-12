@@ -4,11 +4,13 @@
   "private": true,
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=apps/api\" \"npm run dev --workspace=apps/web-admin\"",
-    "build": "npm run build --workspace=apps/api && npm run build --workspace=apps/web-admin",
+    "dev": "concurrently \"npm run dev --workspace=apps/api\" \"npm run dev --workspace=apps/web-admin\" \"npm run dev --workspace=apps/portal-cliente\"",
+    "build": "npm run build --workspace=apps/api && npm run build --workspace=apps/web-admin && npm run build --workspace=apps/portal-cliente",
     "db:migrate": "npm run db:migrate --workspace=packages/database",
+    "db:push": "npm run db:push --workspace=packages/database",
     "db:generate": "npm run db:generate --workspace=packages/database",
-    "db:seed": "npm run db:seed --workspace=packages/database"
+    "db:seed": "npm run db:seed --workspace=packages/database",
+    "pg:start": "powershell -ExecutionPolicy Bypass -File scripts/start-portable-postgres.ps1"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
