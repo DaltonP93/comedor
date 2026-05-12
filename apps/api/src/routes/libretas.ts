@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
+import { generarPDFEstadoCuenta } from '../lib/pdf';
 
 const router = Router();
 router.use(authenticate);
@@ -328,5 +329,66 @@ router.post(
     }
   }
 );
+
+// GET /libretas/:id/estado-cuenta/pdf
+router.get('/:id/estado-cuenta/pdf', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+
+    const libreta = await prisma.libreta.findUnique({
+      where: { id },
+      include: { cliente: true },
+    });
+    if (!libreta) {
+      res.status(404).json({ success: false, message: 'Libreta no encontrada' });
+      return;
+    }
+
+    // Movimientos del mes actual
+    const hoy = new Date();
+    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const movimientos = await prisma.libretaMovimiento.findMany({
+      where: {
+        libreta_id: id,
+        fecha_movimiento: { gte: inicioMes, lte: finMes },
+      },
+      orderBy: { fecha_movimiento: 'desc' },
+    });
+
+    const nombresMes = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const periodo = `${nombresMes[hoy.getMonth()]} ${hoy.getFullYear()}`;
+
+    const buffer = await generarPDFEstadoCuenta({
+      libreta: {
+        id: libreta.id,
+        tipo: libreta.tipo,
+        saldo_actual: libreta.saldo_actual,
+        limite_credito: libreta.limite_credito,
+        cliente: {
+          nombre: libreta.cliente?.nombre ?? 'Sin nombre',
+          documento_numero: libreta.cliente?.documento_numero ?? null,
+        },
+      },
+      movimientos: movimientos.map((m) => ({
+        fecha_movimiento: m.fecha_movimiento,
+        descripcion: m.descripcion,
+        monto_debe: m.monto_debe,
+        monto_haber: m.monto_haber,
+        saldo_resultante: m.saldo_resultante,
+      })),
+      periodo,
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="estado-cuenta-${id}.pdf"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al generar PDF' });
+  }
+});
 
 export default router;

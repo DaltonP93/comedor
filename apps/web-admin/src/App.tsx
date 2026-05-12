@@ -19,6 +19,7 @@ import { ReservasPage } from './pages/reservas/ReservasPage';
 import { ReservaDetalle } from './pages/reservas/ReservaDetalle';
 import { VentasPage } from './pages/ventas/VentasPage';
 import { NuevaVenta } from './pages/ventas/NuevaVenta';
+import { VentaDetalle } from './pages/ventas/VentaDetalle';
 import { LibretasPage } from './pages/libretas/LibretasPage';
 import { LibretaDetalle } from './pages/libretas/LibretaDetalle';
 import { StockPage } from './pages/stock/StockPage';
@@ -91,6 +92,7 @@ function AppRoutes() {
         {/* Ventas */}
         <Route path="/ventas" element={<VentasPage />} />
         <Route path="/ventas/nueva" element={<NuevaVenta />} />
+        <Route path="/ventas/:id" element={<VentaDetalle />} />
 
         {/* Libretas */}
         <Route path="/libretas" element={<LibretasPage />} />

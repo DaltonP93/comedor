@@ -97,6 +97,7 @@ export const libretasApi = {
   actualizar: (id: number, data: Record<string, unknown>) => apiClient.put(`/libretas/${id}`, data),
   pago: (id: number, data: Record<string, unknown>) => apiClient.post(`/libretas/${id}/pago`, data),
   ajuste: (id: number, data: Record<string, unknown>) => apiClient.post(`/libretas/${id}/ajuste`, data),
+  estadoCuentaPDF: (id: number) => apiClient.get(`/libretas/${id}/estado-cuenta/pdf`, { responseType: 'blob' }),
 };
 
 // Stock
@@ -191,4 +192,23 @@ export const recetasApi = {
   crear: (data: Record<string, unknown>) => apiClient.post('/recetas', data),
   actualizar: (id: number, data: Record<string, unknown>) => apiClient.put(`/recetas/${id}`, data),
   eliminar: (id: number) => apiClient.delete(`/recetas/${id}`),
+};
+
+// Empresas
+export const empresasApi = {
+  listar: (params?: Record<string, unknown>) => apiClient.get('/empresas', { params }),
+  obtener: (id: number) => apiClient.get(`/empresas/${id}`),
+  crear: (data: Record<string, unknown>) => apiClient.post('/empresas', data),
+  actualizar: (id: number, data: Record<string, unknown>) => apiClient.put(`/empresas/${id}`, data),
+  eliminar: (id: number) => apiClient.delete(`/empresas/${id}`),
+};
+
+// Notificaciones
+export const notificacionesApi = {
+  listar: (params?: Record<string, unknown>) => apiClient.get('/notificaciones', { params }),
+  obtener: (id: number) => apiClient.get(`/notificaciones/${id}`),
+  crear: (data: Record<string, unknown>) => apiClient.post('/notificaciones', data),
+  marcarEnviada: (id: number) => apiClient.put(`/notificaciones/${id}/marcar-enviada`),
+  envioMasivo: () => apiClient.post('/notificaciones/envio-masivo'),
+  eliminar: (id: number) => apiClient.delete(`/notificaciones/${id}`),
 };

@@ -88,6 +88,18 @@ export function VentasPage() {
       header: 'Fecha',
       render: (row: Venta) => <span className="text-xs text-gray-500">{formatFechaHora(row.creado_en)}</span>,
     },
+    {
+      key: 'acciones',
+      header: '',
+      render: (row: Venta) => (
+        <button
+          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          onClick={() => navigate(`/ventas/${row.id}`)}
+        >
+          Ver
+        </button>
+      ),
+    },
   ];
 
   return (
