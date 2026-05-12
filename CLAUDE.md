@@ -197,7 +197,7 @@ App React separada con diseño mobile-first, esquema de color teal. Token guarda
 - **Fase 4** ✅ Estructura completa de pagos: webhooks Bancard/Pagopar, POS manual, conciliación, confirmación/rechazo manual (conectar credenciales reales en .env)
 - **Fase 5** ✅ Facturación: numeración secuencial, PDF fiscal con IVA 5%/10%/exento, anulación con nota de crédito, configuración tributaria, capa SIFEN lista (activar con SIFEN_HABILITADO=true en Configuracion)
 - **Fase 6** ✅ Portal del cliente (`apps/web-cliente`): login, menú del día, reservar, mis reservas, mi libreta, pago online
-- **Fase 7** 🔲 Predicción de demanda, app móvil nativa, integración con balanza (requiere hardware)
+- **Fase 7** ✅ Predicción de demanda + rentabilidad + desperdicio implementados; PWA instalable en móvil; integración con balanza física pendiente (requiere driver de hardware)
 
 ---
 

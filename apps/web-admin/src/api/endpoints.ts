@@ -172,6 +172,9 @@ export const reportesApi = {
   stock: (params?: Record<string, unknown>) => apiClient.get('/reportes/stock', { params }),
   libreta: (params?: Record<string, unknown>) => apiClient.get('/reportes/libreta', { params }),
   cocina: (params?: Record<string, unknown>) => apiClient.get('/reportes/cocina', { params }),
+  prediccion: (params?: Record<string, unknown>) => apiClient.get('/reportes/prediccion', { params }),
+  rentabilidad: (params?: Record<string, unknown>) => apiClient.get('/reportes/rentabilidad', { params }),
+  desperdicio: (params?: Record<string, unknown>) => apiClient.get('/reportes/desperdicio', { params }),
 };
 
 // Configuraciones

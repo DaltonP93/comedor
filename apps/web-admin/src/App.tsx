@@ -30,6 +30,9 @@ import { ReportesDashboard } from './pages/reportes/ReportesDashboard';
 import { ReporteVentas } from './pages/reportes/ReporteVentas';
 import { ReporteStock } from './pages/reportes/ReporteStock';
 import { ReporteLibreta } from './pages/reportes/ReporteLibreta';
+import ReportePrediccion from './pages/reportes/ReportePrediccion';
+import ReporteRentabilidad from './pages/reportes/ReporteRentabilidad';
+import ReporteDesperdicio from './pages/reportes/ReporteDesperdicio';
 import { ConfiguracionPage } from './pages/configuracion/ConfiguracionPage';
 import { UsuariosPage } from './pages/usuarios/UsuariosPage';
 import { AuditoriaPage } from './pages/auditoria/AuditoriaPage';
@@ -123,6 +126,9 @@ function AppRoutes() {
         <Route path="/reportes/ventas" element={<ReporteVentas />} />
         <Route path="/reportes/stock" element={<ReporteStock />} />
         <Route path="/reportes/libretas" element={<ReporteLibreta />} />
+        <Route path="/reportes/prediccion" element={<ReportePrediccion />} />
+        <Route path="/reportes/rentabilidad" element={<ReporteRentabilidad />} />
+        <Route path="/reportes/desperdicio" element={<ReporteDesperdicio />} />
 
         {/* Empresas */}
         <Route path="/empresas" element={<EmpresasPage />} />

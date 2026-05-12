@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
-import { reportesApi } from '../../api/endpoints';
+import React, { useState, useEffect } from 'react';
+import { reportesApi, sucursalesApi } from '../../api/endpoints';
 import { Card } from '../../components/UI/Card';
 import { Button } from '../../components/UI/Button';
+import { Select } from '../../components/UI/Select';
 import { LoadingSpinner } from '../../components/UI/LoadingSpinner';
 import { Alert } from '../../components/UI/Alert';
 import { formatFecha, hoyISO, getErrorMessage } from '../../lib/utils';
+
+interface Sucursal {
+  id: number;
+  nombre: string;
+}
 
 interface HistoricoItem {
   fecha: string;
@@ -34,9 +40,16 @@ export default function ReportePrediccion() {
 
   const [fecha, setFecha] = useState(manana);
   const [sucursalId, setSucursalId] = useState('');
+  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [datos, setDatos] = useState<PrediccionData | null>(null);
+
+  useEffect(() => {
+    sucursalesApi.listar().then((res) => {
+      setSucursales(res.data.data as Sucursal[]);
+    }).catch(() => {});
+  }, []);
 
   async function calcular() {
     setCargando(true);
@@ -78,13 +91,14 @@ export default function ReportePrediccion() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal (opcional)</label>
-              <input
-                type="number"
+              <Select
+                label="Sucursal (opcional)"
                 value={sucursalId}
                 onChange={(e) => setSucursalId(e.target.value)}
-                placeholder="ID de sucursal"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                options={[
+                  { value: '', label: 'Todas las sucursales' },
+                  ...sucursales.map((s) => ({ value: String(s.id), label: s.nombre })),
+                ]}
               />
             </div>
             <div>
