@@ -38,6 +38,10 @@ import { RecetaForm } from './pages/recetas/RecetaForm';
 import EmpresasPage from './pages/empresas/EmpresasPage';
 import EmpresaDetalle from './pages/empresas/EmpresaDetalle';
 import NotificacionesPage from './pages/notificaciones/NotificacionesPage';
+import ConciliacionPage from './pages/pagos/ConciliacionPage';
+import PagosManualesPage from './pages/pagos/PagosManualesPage';
+import FacturasPage from './pages/facturas/FacturasPage';
+import ConfiguracionTributaria from './pages/configuracion/ConfiguracionTributaria';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -126,6 +130,14 @@ function AppRoutes() {
 
         {/* Notificaciones */}
         <Route path="/notificaciones" element={<NotificacionesPage />} />
+
+        {/* Pagos */}
+        <Route path="/pagos/conciliacion" element={<ConciliacionPage />} />
+        <Route path="/pagos/manuales" element={<PagosManualesPage />} />
+
+        {/* Facturación */}
+        <Route path="/facturas" element={<FacturasPage />} />
+        <Route path="/configuracion/tributaria" element={<ConfiguracionTributaria />} />
 
         {/* Admin */}
         <Route path="/usuarios" element={<UsuariosPage />} />
