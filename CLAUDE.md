@@ -165,16 +165,18 @@ El sistema de permisos es `MODULO:ACCION`. Ejemplos: `VENTAS:VER`, `VENTAS:CREAR
 
 1. **Venta contado:** crea `Venta` + `VentaItem[]` + `StockMovimiento` (SALIDA) + `Pago`
 2. **Venta a libreta:** valida `libreta.saldo_actual + total <= libreta.limite_credito` antes de crear; luego crea `LibretaMovimiento` (CARGO) y actualiza `libreta.saldo_actual`
-3. **Anulación:** revierte `StockMovimiento` con cantidad inversa, revierte `LibretaMovimiento` con ABONO si `cargada_libreta = true`
+3. **Anulación:** revierte `StockMovimiento` con cantidad inversa (referencia_tipo `ANULACION_VENTA`), también revierte movimientos de receta (`ANULACION_RECETA`), y revierte `LibretaMovimiento` con ABONO si `cargada_libreta = true`
 4. **Reserva:** descuenta `menu.cupo_reservado += cantidad`; al cancelar, `menu.cupo_reservado -= cantidad`; al convertir en venta, llama al flujo de venta normal
+5. **Recetas:** al vender un producto con receta activa, se crean `StockMovimiento` (SALIDA, referencia_tipo `RECETA_VENTA`) por cada ingrediente proporcional a la cantidad vendida
+6. **Bloqueo automático de libreta:** al consultar `GET /libretas/:id`, si `estado=ACTIVA` y `saldo_actual > 0` y `hoy.día > dia_vencimiento`, se bloquea automáticamente y registra auditoría; al pagar y el saldo llega a 0, se desbloquea automáticamente
 
 ---
 
 ## Roadmap de implementación (del README)
 
-- **Fase 1** ✅ Núcleo operativo (implementado en MVP)
-- **Fase 2** 🔲 Stock completo con recetas y descuento automático por receta al vender
-- **Fase 3** 🔲 Libretas por empresa, estados de cuenta PDF, bloqueo automático por mora
+- **Fase 1** ✅ Núcleo operativo (usuarios/roles, clientes, productos, menús, reservas, ventas, libretas, stock, compras, reportes)
+- **Fase 2** ✅ Recetas CRUD + descuento automático de ingredientes al vender + producción sugerida en cocina
+- **Fase 3** 🔲 Parcial — bloqueo/desbloqueo automático de libreta implementado; falta: PDF estados de cuenta, libretas por empresa, recordatorios automáticos
 - **Fase 4** 🔲 Pasarela de pagos online (Bancard/Pagopar), webhooks, conciliación
 - **Fase 5** 🔲 Facturación electrónica Paraguay (SIFEN/DNIT)
 - **Fase 6** 🔲 Portal del cliente (web pública para reservas y pago de deuda)

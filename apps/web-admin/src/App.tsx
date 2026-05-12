@@ -32,6 +32,8 @@ import { ReporteLibreta } from './pages/reportes/ReporteLibreta';
 import { ConfiguracionPage } from './pages/configuracion/ConfiguracionPage';
 import { UsuariosPage } from './pages/usuarios/UsuariosPage';
 import { AuditoriaPage } from './pages/auditoria/AuditoriaPage';
+import { RecetasPage } from './pages/recetas/RecetasPage';
+import { RecetaForm } from './pages/recetas/RecetaForm';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -98,6 +100,11 @@ function AppRoutes() {
         <Route path="/stock" element={<StockPage />} />
         <Route path="/stock/entrada" element={<EntradaMercaderia />} />
         <Route path="/stock/kardex/:productoId" element={<KardexPage />} />
+
+        {/* Recetas */}
+        <Route path="/recetas" element={<RecetasPage />} />
+        <Route path="/recetas/nueva" element={<RecetaForm />} />
+        <Route path="/recetas/:id/editar" element={<RecetaForm />} />
 
         {/* Cocina */}
         <Route path="/cocina" element={<CocinaPage />} />

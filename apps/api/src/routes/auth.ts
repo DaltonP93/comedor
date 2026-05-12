@@ -9,6 +9,25 @@ import { registrarAuditoria } from '../lib/audit';
 
 const router = Router();
 
+// Simple in-memory rate limiter: max 5 failed attempts per IP per 15 minutes
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || entry.resetAt < now) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    return true;
+  }
+  if (entry.count >= 5) return false;
+  entry.count++;
+  return true;
+}
+
+function resetRateLimit(ip: string): void {
+  loginAttempts.delete(ip);
+}
+
 // POST /auth/login
 router.post(
   '/login',
@@ -19,6 +38,12 @@ router.post(
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
+      const ip = req.ip || 'unknown';
+      if (!checkRateLimit(ip)) {
+        res.status(429).json({ success: false, message: 'Demasiados intentos. Intente en 15 minutos.' });
+        return;
+      }
+
       const { email, password } = req.body;
 
       const usuario = await prisma.usuario.findUnique({
@@ -47,6 +72,7 @@ router.post(
         sucursalId: usuario.sucursal_id,
       };
 
+      resetRateLimit(ip);
       const token = generateToken(payload);
       const refreshToken = generateRefreshToken(payload);
 

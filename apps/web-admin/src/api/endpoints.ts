@@ -183,3 +183,12 @@ export const configuracionesApi = {
 export const auditoriaApi = {
   listar: (params?: Record<string, unknown>) => apiClient.get('/auditoria', { params }),
 };
+
+// Recetas
+export const recetasApi = {
+  listar: (params?: Record<string, unknown>) => apiClient.get('/recetas', { params }),
+  obtener: (id: number) => apiClient.get(`/recetas/${id}`),
+  crear: (data: Record<string, unknown>) => apiClient.post('/recetas', data),
+  actualizar: (id: number, data: Record<string, unknown>) => apiClient.put(`/recetas/${id}`, data),
+  eliminar: (id: number) => apiClient.delete(`/recetas/${id}`),
+};

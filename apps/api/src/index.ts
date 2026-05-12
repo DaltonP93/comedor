@@ -23,6 +23,7 @@ import cajasRouter from './routes/cajas';
 import reportesRouter from './routes/reportes';
 import configuracionesRouter from './routes/configuraciones';
 import auditoriaRouter from './routes/auditoria';
+import recetasRouter from './routes/recetas';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -70,6 +71,7 @@ app.use('/api/cajas', cajasRouter);
 app.use('/api/reportes', reportesRouter);
 app.use('/api/configuraciones', configuracionesRouter);
 app.use('/api/auditoria', auditoriaRouter);
+app.use('/api/recetas', recetasRouter);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
