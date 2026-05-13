@@ -44,12 +44,15 @@ model Sucursal {
   direccion String?   @db.VarChar(255)
   telefono  String?   @db.VarChar(30)
   activo    Boolean   @default(true)
-  usuarios  Usuario[]
-  cajas     Caja[]
-  menus     Menu[]
-  reservas  Reserva[]
-  ventas    Venta[]
-  stock     StockMovimiento[]
+  usuarios       Usuario[]
+  cajas          Caja[]
+  menus          Menu[]
+  reservas       Reserva[]
+  ventas         Venta[]
+  stock          StockMovimiento[]
+  depositos      Deposito[]
+  caja_aperturas CajaApertura[]
+  stock_actual   StockActual[]
 
   @@map("sucursales")
 }
@@ -67,12 +70,15 @@ model Usuario {
   actualizado_en DateTime  @updatedAt
   rol            Rol       @relation(fields: [rol_id], references: [id])
   sucursal       Sucursal? @relation(fields: [sucursal_id], references: [id])
-  ventas         Venta[]
-  menus_creados  Menu[]
-  movimientos_libreta LibretaMovimiento[]
-  movimientos_stock   StockMovimiento[]
-  compras        Compra[]
-  auditoria      Auditoria[]
+  ventas               Venta[]
+  menus_creados        Menu[]
+  movimientos_libreta  LibretaMovimiento[]
+  movimientos_stock    StockMovimiento[]
+  compras              Compra[]
+  auditoria            Auditoria[]
+  caja_aperturas       CajaApertura[]    @relation("CajaAperturaUsuario")
+  caja_movimientos     CajaMovimiento[]
+  sesiones             UserSession[]
 
   @@map("usuarios")
 }
@@ -83,8 +89,9 @@ model Caja {
   sucursal_id Int
   estado      String    @default("CERRADA") @db.VarChar(20)
   activo      Boolean   @default(true)
-  sucursal    Sucursal  @relation(fields: [sucursal_id], references: [id])
+  sucursal    Sucursal       @relation(fields: [sucursal_id], references: [id])
   ventas      Venta[]
+  aperturas   CajaApertura[]
 
   @@map("cajas")
 }
@@ -114,6 +121,8 @@ model Cliente {
   pagos                  Pago[]
   notificaciones         Notificacion[]
   facturas               Factura[]
+  documentos_fiscales    DocumentoFiscal[]
+  consentimientos        ClienteConsentimiento[]
 
   @@map("clientes")
 }
@@ -170,13 +179,14 @@ model Producto {
   venta_por_kilo  Boolean           @default(false)
   activo          Boolean           @default(true)
   creado_en       DateTime          @default(now())
-  categoria       CategoriaProducto? @relation(fields: [categoria_id], references: [id])
-  menu_items      MenuItem[]
-  venta_items     VentaItem[]
+  categoria         CategoriaProducto? @relation(fields: [categoria_id], references: [id])
+  menu_items        MenuItem[]
+  venta_items       VentaItem[]
   stock_movimientos StockMovimiento[]
-  compra_items    CompraItem[]
-  recetas         Receta[]
-  receta_items    RecetaItem[]
+  compra_items      CompraItem[]
+  recetas           Receta[]
+  receta_items      RecetaItem[]
+  stock_actual      StockActual[]
 
   @@map("productos")
 }
@@ -363,6 +373,7 @@ model Pago {
   cliente             Cliente?            @relation(fields: [cliente_id], references: [id])
   libreta             Libreta?            @relation(fields: [libreta_id], references: [id])
   libreta_movimientos LibretaMovimiento[]
+  intentos            PagoIntento[]
 
   @@map("pagos")
 }
@@ -511,4 +522,218 @@ model Configuracion {
   descripcion String? @db.VarChar(255)
 
   @@map("configuraciones")
+}
+
+model Deposito {
+  id          Int           @id @default(autoincrement())
+  sucursal_id Int
+  nombre      String        @db.VarChar(100)
+  descripcion String?       @db.VarChar(255)
+  activo      Boolean       @default(true)
+  sucursal    Sucursal      @relation(fields: [sucursal_id], references: [id])
+  stock       StockActual[]
+
+  @@map("depositos")
+}
+
+model StockActual {
+  id             Int       @id @default(autoincrement())
+  producto_id    Int
+  sucursal_id    Int
+  deposito_id    Int?
+  cantidad       Decimal   @default(0) @db.Decimal(14, 3)
+  costo_promedio BigInt    @default(0)
+  actualizado_en DateTime  @updatedAt
+
+  producto   Producto  @relation(fields: [producto_id], references: [id])
+  sucursal   Sucursal  @relation(fields: [sucursal_id], references: [id])
+  deposito   Deposito? @relation(fields: [deposito_id], references: [id])
+
+  @@unique([producto_id, sucursal_id, deposito_id])
+  @@map("stock_actual")
+}
+
+model CajaApertura {
+  id                Int              @id @default(autoincrement())
+  caja_id           Int
+  usuario_id        Int
+  sucursal_id       Int
+  fecha_apertura    DateTime         @default(now())
+  monto_inicial     BigInt           @default(0)
+  estado            String           @default("ABIERTA") @db.VarChar(20)
+  observacion       String?          @db.Text
+  fecha_cierre      DateTime?
+  usuario_cierre_id Int?
+  monto_sistema     BigInt           @default(0)
+  monto_declarado   BigInt           @default(0)
+  diferencia        BigInt           @default(0)
+
+  caja         Caja             @relation(fields: [caja_id], references: [id])
+  usuario      Usuario          @relation("CajaAperturaUsuario", fields: [usuario_id], references: [id])
+  sucursal     Sucursal         @relation(fields: [sucursal_id], references: [id])
+  movimientos  CajaMovimiento[]
+
+  @@map("caja_aperturas")
+}
+
+model CajaMovimiento {
+  id              Int          @id @default(autoincrement())
+  apertura_id     Int
+  venta_id        Int?
+  pago_id         Int?
+  tipo_movimiento String       @db.VarChar(30)
+  forma_pago      String?      @db.VarChar(30)
+  monto           BigInt       @default(0)
+  descripcion     String?      @db.VarChar(255)
+  creado_en       DateTime     @default(now())
+  usuario_id      Int?
+
+  apertura  CajaApertura @relation(fields: [apertura_id], references: [id])
+  usuario   Usuario?     @relation(fields: [usuario_id], references: [id])
+
+  @@map("caja_movimientos")
+}
+
+model DocumentoFiscal {
+  id                      Int      @id @default(autoincrement())
+  venta_id                Int?     @unique
+  cliente_id              Int?
+  tipo_documento          String   @db.VarChar(30)
+  condicion               String   @db.VarChar(20)
+  establecimiento         String   @db.VarChar(3)
+  punto_expedicion        String   @db.VarChar(3)
+  numero                  Int
+  numero_formateado       String   @db.VarChar(50)
+  timbrado                String?  @db.VarChar(50)
+  fecha_emision           DateTime @default(now())
+  subtotal                BigInt   @default(0)
+  iva_5                   BigInt   @default(0)
+  iva_10                  BigInt   @default(0)
+  iva_total               BigInt   @default(0)
+  exento                  BigInt   @default(0)
+  total                   BigInt   @default(0)
+  estado                  String   @default("BORRADOR") @db.VarChar(30)
+  estado_sifen            String?  @db.VarChar(30)
+  cdc                     String?  @unique @db.VarChar(100)
+  xml                     String?  @db.Text
+  kude_url                String?  @db.VarChar(255)
+  pdf_path                String?  @db.VarChar(255)
+  documento_relacionado_id Int?
+  motivo_anulacion        String?  @db.Text
+  creado_en               DateTime @default(now())
+  actualizado_en          DateTime @updatedAt
+
+  cliente                  Cliente?          @relation(fields: [cliente_id], references: [id])
+  documento_relacionado    DocumentoFiscal?  @relation("DocFiscalRelacion", fields: [documento_relacionado_id], references: [id])
+  documentos_relacionados  DocumentoFiscal[] @relation("DocFiscalRelacion")
+  eventos                  DocumentoFiscalEvento[]
+
+  @@unique([establecimiento, punto_expedicion, tipo_documento, numero])
+  @@map("documentos_fiscales")
+}
+
+model DocumentoFiscalEvento {
+  id                   Int      @id @default(autoincrement())
+  documento_fiscal_id  Int
+  tipo_evento          String   @db.VarChar(50)
+  estado_anterior      String?  @db.VarChar(30)
+  estado_nuevo         String?  @db.VarChar(30)
+  payload              Json?
+  respuesta            Json?
+  mensaje              String?  @db.Text
+  creado_en            DateTime @default(now())
+
+  documento DocumentoFiscal @relation(fields: [documento_fiscal_id], references: [id])
+
+  @@map("documento_fiscal_eventos")
+}
+
+model SecuenciaFiscal {
+  id               Int      @id @default(autoincrement())
+  establecimiento  String   @db.VarChar(3)
+  punto_expedicion String   @db.VarChar(3)
+  tipo_documento   String   @db.VarChar(30)
+  ultimo_numero    Int      @default(0)
+  activo           Boolean  @default(true)
+  actualizado_en   DateTime @updatedAt
+
+  @@unique([establecimiento, punto_expedicion, tipo_documento])
+  @@map("secuencias_fiscales")
+}
+
+model PagoIntento {
+  id                 Int      @id @default(autoincrement())
+  pago_id            Int
+  proveedor          String   @db.VarChar(50)
+  estado             String   @default("CREADO") @db.VarChar(30)
+  referencia_externa String?  @db.VarChar(150)
+  redirect_url       String?  @db.Text
+  request_payload    Json?
+  response_payload   Json?
+  creado_en          DateTime @default(now())
+  actualizado_en     DateTime @updatedAt
+
+  pago Pago @relation(fields: [pago_id], references: [id])
+
+  @@map("pago_intentos")
+}
+
+model WebhookEvento {
+  id                 Int       @id @default(autoincrement())
+  proveedor          String    @db.VarChar(50)
+  event_id           String?   @db.VarChar(150)
+  referencia_externa String?   @db.VarChar(150)
+  signature          String?   @db.Text
+  payload            Json
+  estado             String    @default("RECIBIDO") @db.VarChar(30)
+  procesado_en       DateTime?
+  error              String?   @db.Text
+  creado_en          DateTime  @default(now())
+
+  @@unique([proveedor, event_id])
+  @@map("webhook_eventos")
+}
+
+model UserSession {
+  id                 Int       @id @default(autoincrement())
+  usuario_id         Int
+  refresh_token_hash String    @db.VarChar(255)
+  ip                 String?   @db.VarChar(50)
+  user_agent         String?   @db.Text
+  expires_at         DateTime
+  revoked_at         DateTime?
+  creado_en          DateTime  @default(now())
+
+  usuario Usuario @relation(fields: [usuario_id], references: [id])
+
+  @@map("user_sessions")
+}
+
+model NotificacionPlantilla {
+  id             Int      @id @default(autoincrement())
+  codigo         String   @unique @db.VarChar(100)
+  nombre         String   @db.VarChar(150)
+  canal          String   @db.VarChar(30)
+  asunto         String?  @db.VarChar(200)
+  cuerpo         String   @db.Text
+  activo         Boolean  @default(true)
+  creado_en      DateTime @default(now())
+  actualizado_en DateTime @updatedAt
+
+  @@map("notificacion_plantillas")
+}
+
+model ClienteConsentimiento {
+  id         Int      @id @default(autoincrement())
+  cliente_id Int
+  tipo       String   @db.VarChar(50)
+  aceptado   Boolean  @default(false)
+  canal      String?  @db.VarChar(30)
+  ip         String?  @db.VarChar(50)
+  user_agent String?  @db.Text
+  fecha      DateTime @default(now())
+
+  cliente Cliente @relation(fields: [cliente_id], references: [id])
+
+  @@map("cliente_consentimientos")
 }

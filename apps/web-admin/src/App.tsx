@@ -47,13 +47,9 @@ import ConciliacionPage from './pages/pagos/ConciliacionPage';
 import PagosManualesPage from './pages/pagos/PagosManualesPage';
 import FacturasPage from './pages/facturas/FacturasPage';
 import ConfiguracionTributaria from './pages/configuracion/ConfiguracionTributaria';
-
-// New pages
 import { ProveedoresPage } from './pages/proveedores/ProveedoresPage';
 import { ComprasPage } from './pages/compras/ComprasPage';
 import { NuevaCompra } from './pages/compras/NuevaCompra';
-import { EmpresasPage } from './pages/empresas/EmpresasPage';
-import { RecetasPage } from './pages/recetas/RecetasPage';
 import { RolesPage } from './pages/roles/RolesPage';
 import { SucursalesPage } from './pages/sucursales/SucursalesPage';
 import { CajasPage } from './pages/cajas/CajasPage';
@@ -105,8 +101,8 @@ function AppRoutes() {
         <Route path="/menus" element={<MenusPage />} />
         <Route path="/menus/portal" element={<PortalModulosPage />} />
         <Route path="/menus/nuevo" element={<MenuForm />} />
-        <Route path="/menus/:id(\\d+)/editar" element={<MenuForm />} />
-        <Route path="/menus/:id(\\d+)" element={<MenuDetalle />} />
+        <Route path="/menus/:id/editar" element={<MenuForm />} />
+        <Route path="/menus/:id" element={<MenuDetalle />} />
 
         {/* Reservas */}
         <Route path="/reservas" element={<ReservasPage />} />
@@ -164,12 +160,6 @@ function AppRoutes() {
         {/* Compras */}
         <Route path="/compras" element={<ComprasPage />} />
         <Route path="/compras/nueva" element={<NuevaCompra />} />
-
-        {/* Empresas */}
-        <Route path="/empresas" element={<EmpresasPage />} />
-
-        {/* Recetas */}
-        <Route path="/recetas" element={<RecetasPage />} />
 
         {/* Admin */}
         <Route path="/usuarios" element={<UsuariosPage />} />
