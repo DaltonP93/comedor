@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Sistema de ventas, reservas, menú, stock, libreta y pagos para comedor en Paraguay. Moneda: Guaraníes (PYG, enteros sin decimales). El README.md contiene la especificación funcional completa con 35 secciones de detalle.
 
-**Estado actual:** Fases 1–6 implementadas. Ver sección "Roadmap" abajo para detalle de cada fase.
+**Estado actual:** Todos los sprints (1–8) implementados y en producción. Ver sección "Roadmap" abajo para detalle de cada fase.
 
 **Demo:** `admin@comedor.com` / `admin123`
 
@@ -198,6 +198,17 @@ App React separada con diseño mobile-first, esquema de color teal. Token guarda
 - **Fase 5** ✅ Facturación: numeración secuencial, PDF fiscal con IVA 5%/10%/exento, anulación con nota de crédito, configuración tributaria, capa SIFEN lista (activar con SIFEN_HABILITADO=true en Configuracion)
 - **Fase 6** ✅ Portal del cliente (`apps/web-cliente`): login, menú del día, reservar, mis reservas, mi libreta, pago online
 - **Fase 7** ✅ Predicción de demanda + rentabilidad + desperdicio implementados; PWA instalable en móvil; integración con balanza física pendiente (requiere driver de hardware)
+
+### Hardening producción (plan_correccion_comedor_claude.md)
+
+- **Sprint 1** ✅ Estabilización: build fixes (App.tsx, React Router v6, helmet duplicado), .env.example completo, docker-compose.prod.yml con redes internas, api-entrypoint.sh seguro
+- **Sprint 2** ✅ Seguridad: Redis client, logger JSON estructurado, middleware requestId/errorHandler/rateLimit, sesiones persistentes en UserSession, rotación de refresh tokens
+- **Sprint 3** ✅ Schema ampliado: StockActual, CajaApertura, CajaMovimiento, DocumentoFiscal, DocumentoFiscalEvento, SecuenciaFiscal, PagoIntento, WebhookEvento, UserSession, NotificacionPlantilla, ClienteConsentimiento, Deposito
+- **Sprint 4** ✅ Servicios: calculos.ts (IVA 5%/10%/exento incluido), StockService (costo promedio ponderado, recetas), LibretaService (validación crédito, bloqueo automático), ventas.ts con pagos mixtos y validación previa de stock
+- **Sprint 5** ✅ Caja profesional: abrir/cerrar apertura, resumen por forma de pago, retiros, estado actual
+- **Sprint 6** ✅ Pagos robustos: PaymentProvider interface, BancardProvider (sandbox/real, SHA256), PagoparProvider (mock/real, SHA1/SHA256), webhooks idempotentes con WebhookEvento, POST /pagos/iniciar con PagoIntento
+- **Sprint 7** ✅ Facturación SIFEN: SecuenciaService (UPDATE atómico FOR UPDATE), SifenProvider (mock/real), facturas.ts completo con DocumentoFiscal/eventos, anulación, reenvío
+- **Sprint 8** ✅ Tests (27 tests Vitest, sin DB, mocks completos) + CI/CD GitHub Actions (3 jobs: test, typecheck, lint)
 
 ---
 
