@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { reportesApi } from '../../api/endpoints';
 import { Button } from '../../components/UI/Button';
+import { PageBack } from '../../components/UI/PageBack';
 import { Alert } from '../../components/UI/Alert';
 import { formatGs, getErrorMessage } from '../../lib/utils';
 
@@ -41,8 +42,11 @@ export function ReporteStock() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Reporte de Stock</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <PageBack to="/reportes" />
+          <h1 className="text-2xl font-bold text-gray-900">Reporte de Stock</h1>
+        </div>
         <Button onClick={generar} loading={loading}>Generar reporte</Button>
       </div>
 

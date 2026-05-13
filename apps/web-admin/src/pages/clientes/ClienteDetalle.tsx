@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { clientesApi } from '../../api/endpoints';
 import { Button } from '../../components/UI/Button';
+import { PageBack } from '../../components/UI/PageBack';
 import { Badge, estadoBadge } from '../../components/UI/Badge';
 import { Card } from '../../components/UI/Card';
 import { PageLoader } from '../../components/UI/LoadingSpinner';
@@ -50,7 +51,7 @@ export function ClienteDetalle() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/clientes')}>← Volver</Button>
+        <PageBack to="/clientes" />
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900">{String(data.nombre)}</h1>

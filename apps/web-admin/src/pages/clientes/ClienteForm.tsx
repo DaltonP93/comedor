@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { clientesApi } from '../../api/endpoints';
 import { Button } from '../../components/UI/Button';
+import { PageBack } from '../../components/UI/PageBack';
 import { Input } from '../../components/UI/Input';
 import { Select } from '../../components/UI/Select';
 import { Alert } from '../../components/UI/Alert';
@@ -22,6 +23,7 @@ interface ClienteFormData {
   permite_notificaciones: boolean;
   canal_preferido: string;
   estado: string;
+  password?: string;
 }
 
 const initialData: ClienteFormData = {
@@ -38,6 +40,7 @@ const initialData: ClienteFormData = {
   permite_notificaciones: true,
   canal_preferido: 'WHATSAPP',
   estado: 'ACTIVO',
+  password: '',
 };
 
 export function ClienteForm() {
@@ -75,6 +78,7 @@ export function ClienteForm() {
         permite_notificaciones: Boolean(c.permite_notificaciones ?? true),
         canal_preferido: String(c.canal_preferido ?? 'WHATSAPP'),
         estado: String(c.estado ?? 'ACTIVO'),
+        password: '',
       });
     } catch (err) {
       setError(getErrorMessage(err));
@@ -96,10 +100,13 @@ export function ClienteForm() {
     setSaving(true);
     setError('');
     try {
+      const payload = { ...formData };
+      if (!payload.password) delete payload.password;
+
       if (isEditing) {
-        await clientesApi.actualizar(parseInt(id!), formData as unknown as Record<string, unknown>);
+        await clientesApi.actualizar(parseInt(id!), payload as unknown as Record<string, unknown>);
       } else {
-        await clientesApi.crear(formData as unknown as Record<string, unknown>);
+        await clientesApi.crear(payload as unknown as Record<string, unknown>);
       }
       navigate('/clientes');
     } catch (err) {
@@ -115,10 +122,8 @@ export function ClienteForm() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/clientes')}>
-          ← Volver
-        </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <PageBack to="/clientes" />
         <h1 className="text-2xl font-bold text-gray-900">
           {isEditing ? 'Editar cliente' : 'Nuevo cliente'}
         </h1>
@@ -209,6 +214,20 @@ export function ClienteForm() {
               value={formData.direccion}
               onChange={(e) => handleChange('direccion', e.target.value)}
               placeholder="Dirección completa"
+            />
+          </div>
+        </Card>
+
+        <Card title="Portal de Cliente" className="mt-4">
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500">Credenciales para que el cliente ingrese a su portal.</p>
+            <Input
+              label="Contraseña del portal"
+              type="password"
+              value={formData.password || ''}
+              onChange={(e) => handleChange('password', e.target.value)}
+              placeholder={isEditing ? 'Dejar en blanco para mantener la actual' : 'Ingrese una contraseña'}
+              helpText="El cliente usará su Email o Documento junto con esta contraseña."
             />
           </div>
         </Card>

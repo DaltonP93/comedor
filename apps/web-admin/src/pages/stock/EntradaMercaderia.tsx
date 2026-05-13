@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { comprasApi, productosApi, proveedoresApi } from '../../api/endpoints';
 import { Button } from '../../components/UI/Button';
+import { PageBack } from '../../components/UI/PageBack';
 import { Input } from '../../components/UI/Input';
 import { Select } from '../../components/UI/Select';
 import { Alert } from '../../components/UI/Alert';
@@ -99,7 +100,7 @@ export function EntradaMercaderia() {
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/stock')}>← Volver</Button>
+        <PageBack to="/stock" />
         <h1 className="text-2xl font-bold text-gray-900">Entrada de mercadería</h1>
       </div>
 

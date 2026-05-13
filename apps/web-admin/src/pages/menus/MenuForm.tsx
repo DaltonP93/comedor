@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { menusApi, productosApi, sucursalesApi } from '../../api/endpoints';
 import { Button } from '../../components/UI/Button';
+import { PageBack } from '../../components/UI/PageBack';
 import { Input } from '../../components/UI/Input';
 import { Select } from '../../components/UI/Select';
 import { Alert } from '../../components/UI/Alert';
@@ -123,8 +124,8 @@ export function MenuForm() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/menus')}>← Volver</Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <PageBack to="/menus" />
         <h1 className="text-2xl font-bold text-gray-900">{isEditing ? 'Editar menú' : 'Nuevo menú'}</h1>
       </div>
 

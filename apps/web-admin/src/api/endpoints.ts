@@ -35,6 +35,13 @@ export const productosApi = {
   obtener: (id: number) => apiClient.get(`/productos/${id}`),
   crear: (data: Record<string, unknown>) => apiClient.post('/productos', data),
   actualizar: (id: number, data: Record<string, unknown>) => apiClient.put(`/productos/${id}`, data),
+  uploadImage: (id: number, file: File) => {
+    const formData = new FormData();
+    formData.append('imagen', file);
+    return apiClient.post(`/productos/${id}/imagen`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   eliminar: (id: number) => apiClient.delete(`/productos/${id}`),
 };
 

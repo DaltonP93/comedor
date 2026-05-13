@@ -430,12 +430,13 @@ router.post(
       const { producto_id, peso_kg, sucursal_id, caja_id, cliente_id, forma_pago, descuento = 0 } = req.body;
 
       const producto = await prisma.producto.findUnique({ where: { id: producto_id } });
-      if (!producto || !producto.precio_por_kg) {
+      if (!producto || producto.precio_por_kg === null) {
         res.status(400).json({ success: false, message: 'Producto sin precio por kg' });
         return;
       }
 
-      const total = BigInt(Math.round(Number(producto.precio_por_kg) * peso_kg)) - BigInt(descuento);
+      const precioPorKg = producto.precio_por_kg;
+      const total = BigInt(Math.round(Number(precioPorKg) * peso_kg)) - BigInt(descuento);
 
       const venta = await prisma.$transaction(async (tx) => {
         const v = await tx.venta.create({
@@ -458,7 +459,7 @@ router.post(
                   descripcion: `${producto.nombre} - ${peso_kg}kg`,
                   cantidad: peso_kg,
                   unidad_medida: 'KG',
-                  precio_unitario: producto.precio_por_kg,
+                  precio_unitario: precioPorKg,
                   iva_porcentaje: Number(producto.iva_porcentaje),
                   subtotal: total,
                   total,

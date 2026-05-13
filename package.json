@@ -8,8 +8,10 @@
     "dev:cliente": "npm run dev --workspace=apps/web-cliente",
     "build": "npm run build --workspace=apps/api && npm run build --workspace=apps/web-admin",
     "db:migrate": "npm run db:migrate --workspace=packages/database",
+    "db:push": "npm run db:push --workspace=packages/database",
     "db:generate": "npm run db:generate --workspace=packages/database",
-    "db:seed": "npm run db:seed --workspace=packages/database"
+    "db:seed": "npm run db:seed --workspace=packages/database",
+    "pg:start": "powershell -ExecutionPolicy Bypass -File scripts/start-portable-postgres.ps1"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

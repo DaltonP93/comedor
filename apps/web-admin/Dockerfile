@@ -6,8 +6,11 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+ARG VITE_API_URL=/api
+ENV VITE_API_URL=${VITE_API_URL}
+
+# Install dependencies (no package-lock in repo)
+RUN npm install
 
 # Copy source
 COPY . .

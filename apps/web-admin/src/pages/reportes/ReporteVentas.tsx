@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { reportesApi } from '../../api/endpoints';
 import { Button } from '../../components/UI/Button';
+import { PageBack } from '../../components/UI/PageBack';
 import { Input } from '../../components/UI/Input';
 import { Alert } from '../../components/UI/Alert';
 import { formatGs, formatFechaHora, getErrorMessage, hoyISO } from '../../lib/utils';
@@ -48,7 +49,10 @@ export function ReporteVentas() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-gray-900">Reporte de Ventas</h1>
+      <div className="flex flex-wrap items-center gap-3">
+        <PageBack to="/reportes" />
+        <h1 className="text-2xl font-bold text-gray-900">Reporte de Ventas</h1>
+      </div>
 
       {error && <Alert type="error" onClose={() => setError('')}>{error}</Alert>}
 

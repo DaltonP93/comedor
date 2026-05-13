@@ -101,6 +101,7 @@ model Cliente {
   whatsapp               String?   @db.VarChar(30)
   email                  String?   @db.VarChar(150)
   direccion              String?   @db.VarChar(255)
+  password_hash          String?   @db.VarChar(255)
   permite_notificaciones Boolean   @default(true)
   canal_preferido        String?   @db.VarChar(20)
   estado                 String    @default("ACTIVO") @db.VarChar(20)
@@ -158,6 +159,7 @@ model Producto {
   codigo_barra    String?           @unique @db.VarChar(50)
   nombre          String            @db.VarChar(200)
   descripcion     String?           @db.Text
+  imagen_url      String?           @db.VarChar(255)
   categoria_id    Int?
   unidad_medida   String            @default("UNIDAD") @db.VarChar(20)
   precio_venta    BigInt            @default(0)

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { productosApi, categoriasApi } from '../../api/endpoints';
 import { Button } from '../../components/UI/Button';
+import { PageBack } from '../../components/UI/PageBack';
 import { Input } from '../../components/UI/Input';
 import { Select } from '../../components/UI/Select';
 import { Alert } from '../../components/UI/Alert';
@@ -24,6 +25,7 @@ const initialData = {
   controla_stock: true,
   venta_por_kilo: false,
   activo: true,
+  imagen_url: '',
 };
 
 export function ProductoForm() {
@@ -36,6 +38,7 @@ export function ProductoForm() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   useEffect(() => {
     categoriasApi.listar({ activo: 'true' }).then((res) => {
@@ -63,6 +66,7 @@ export function ProductoForm() {
         controla_stock: Boolean(p.controla_stock),
         venta_por_kilo: Boolean(p.venta_por_kilo),
         activo: Boolean(p.activo ?? true),
+        imagen_url: String(p.imagen_url ?? ''),
       });
     } catch (err) {
       setError(getErrorMessage(err));
@@ -89,11 +93,18 @@ export function ProductoForm() {
         iva_porcentaje: parseFloat(formData.iva_porcentaje) || 10,
       };
 
+      let productoId = parseInt(id!);
       if (isEditing) {
-        await productosApi.actualizar(parseInt(id!), payload as unknown as Record<string, unknown>);
+        await productosApi.actualizar(productoId, payload as unknown as Record<string, unknown>);
       } else {
-        await productosApi.crear(payload as unknown as Record<string, unknown>);
+        const res = await productosApi.crear(payload as unknown as Record<string, unknown>);
+        productoId = res.data.data.id;
       }
+
+      if (imageFile) {
+        await productosApi.uploadImage(productoId, imageFile);
+      }
+
       navigate('/productos');
     } catch (err) {
       setError(getErrorMessage(err));
@@ -106,8 +117,8 @@ export function ProductoForm() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/productos')}>← Volver</Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <PageBack to="/productos" />
         <h1 className="text-2xl font-bold text-gray-900">{isEditing ? 'Editar producto' : 'Nuevo producto'}</h1>
       </div>
 
@@ -116,11 +127,31 @@ export function ProductoForm() {
       <form onSubmit={handleSubmit}>
         <Card title="Información del producto">
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Código interno" value={formData.codigo} onChange={(e) => handleChange('codigo', e.target.value)} placeholder="Ej: ALM001" />
-              <Input label="Código de barra" value={formData.codigo_barra} onChange={(e) => handleChange('codigo_barra', e.target.value)} placeholder="EAN/UPC" />
+            <div className="flex gap-4 items-start">
+              <div className="w-32 h-32 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center relative group">
+                {imageFile ? (
+                  <img src={URL.createObjectURL(imageFile)} alt="Preview" className="w-full h-full object-cover" />
+                ) : formData.imagen_url ? (
+                  <img src={`http://localhost:3001${formData.imagen_url}`} alt="Product" className="w-full h-full object-cover" />
+                ) : (
+                  <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                )}
+                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <label className="cursor-pointer text-white text-xs font-semibold px-2 py-1 bg-blue-600 rounded">
+                    Subir foto
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files?.[0]) setImageFile(e.target.files[0]); }} />
+                  </label>
+                </div>
+              </div>
+              
+              <div className="flex-1 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <Input label="Código interno" value={formData.codigo} onChange={(e) => handleChange('codigo', e.target.value)} placeholder="Ej: ALM001" />
+                  <Input label="Código de barra" value={formData.codigo_barra} onChange={(e) => handleChange('codigo_barra', e.target.value)} placeholder="EAN/UPC" />
+                </div>
+                <Input label="Nombre del producto" value={formData.nombre} onChange={(e) => handleChange('nombre', e.target.value)} required placeholder="Nombre del producto" />
+              </div>
             </div>
-            <Input label="Nombre del producto" value={formData.nombre} onChange={(e) => handleChange('nombre', e.target.value)} required placeholder="Nombre del producto" />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
               <textarea

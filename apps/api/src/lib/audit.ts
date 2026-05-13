@@ -1,12 +1,13 @@
 import { prisma } from './prisma';
+import type { Prisma } from '@prisma/client';
 
 interface AuditParams {
   usuarioId?: number;
   modulo: string;
   accion: string;
   registroId?: string | number;
-  valorAnterior?: Record<string, unknown>;
-  valorNuevo?: Record<string, unknown>;
+  valorAnterior?: unknown;
+  valorNuevo?: unknown;
   ip?: string;
 }
 
@@ -18,8 +19,8 @@ export async function registrarAuditoria(params: AuditParams): Promise<void> {
         modulo: params.modulo,
         accion: params.accion,
         registro_id: params.registroId ? String(params.registroId) : undefined,
-        valor_anterior: params.valorAnterior ?? undefined,
-        valor_nuevo: params.valorNuevo ?? undefined,
+        valor_anterior: params.valorAnterior as Prisma.InputJsonValue | undefined,
+        valor_nuevo: params.valorNuevo as Prisma.InputJsonValue | undefined,
         ip: params.ip,
       },
     });

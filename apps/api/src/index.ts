@@ -1,8 +1,15 @@
 import 'dotenv/config';
+
+// BigInt JSON serialization support
+(BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
+  return this.toString();
+};
+
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import path from 'path';
 
 import authRouter from './routes/auth';
 import clientesRouter from './routes/clientes';
@@ -32,13 +39,22 @@ import facturasRouter from './routes/facturas';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+function corsOrigin(): string | string[] {
+  const raw = process.env.CORS_ORIGIN || 'http://localhost:3000';
+  const parts = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.length <= 1 ? parts[0] || 'http://localhost:3000' : parts;
+}
+
 // Security middleware
 app.use(helmet());
 
 // CORS
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: corsOrigin(),
     credentials: true,
   })
 );
@@ -54,6 +70,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Serve static uploads
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // API Routes
 app.use('/api/auth', authRouter);
