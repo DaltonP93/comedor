@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
+import { generarPDFEstadoCuenta } from '../lib/pdf';
 
 const router = Router();
 router.use(authenticate);
@@ -45,7 +46,7 @@ router.get('/', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Respon
 // GET /libretas/:id
 router.get('/:id', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Response): Promise<void> => {
   try {
-    const libreta = await prisma.libreta.findUnique({
+    let libreta = await prisma.libreta.findUnique({
       where: { id: parseInt(req.params.id) },
       include: { cliente: true, empresa: true },
     });
@@ -53,7 +54,31 @@ router.get('/:id', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Res
       res.status(404).json({ success: false, message: 'Libreta no encontrada' });
       return;
     }
-    res.json({ success: true, data: libreta });
+
+    // Bloqueo automático por mora: si está ACTIVA, tiene saldo actual > 0 y pasó el día de vencimiento del mes
+    let bloqueada_automaticamente = false;
+    if (libreta.estado === 'ACTIVA' && libreta.saldo_actual > BigInt(0) && libreta.dia_vencimiento) {
+      const hoy = new Date();
+      if (hoy.getDate() > libreta.dia_vencimiento) {
+        libreta = await prisma.libreta.update({
+          where: { id: libreta.id },
+          data: { estado: 'BLOQUEADA', saldo_vencido: libreta.saldo_actual },
+          include: { cliente: true, empresa: true },
+        });
+        bloqueada_automaticamente = true;
+
+        await registrarAuditoria({
+          usuarioId: req.user?.userId,
+          modulo: 'LIBRETAS',
+          accion: 'BLOQUEO_AUTOMATICO',
+          registroId: libreta.id,
+          valorNuevo: { motivo: 'Deuda vencida: superó día de vencimiento del mes', saldo_vencido: String(libreta.saldo_vencido) },
+          ip: req.ip,
+        });
+      }
+    }
+
+    res.json({ success: true, data: { ...libreta, bloqueada_automaticamente } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: 'Error al obtener libreta' });
@@ -173,13 +198,18 @@ router.post(
         res.status(404).json({ success: false, message: 'Libreta no encontrada' });
         return;
       }
-      if (libreta.estado !== 'ACTIVA') {
-        res.status(400).json({ success: false, message: 'Libreta no activa' });
+      // Permitir pago tanto en ACTIVA como en BLOQUEADA (para poder saldar deuda)
+      if (libreta.estado !== 'ACTIVA' && libreta.estado !== 'BLOQUEADA') {
+        res.status(400).json({ success: false, message: 'Libreta suspendida o inactiva' });
         return;
       }
 
       const montoBigInt = BigInt(monto);
       const nuevoSaldo = libreta.saldo_actual - montoBigInt;
+      const saldoFinal = nuevoSaldo < BigInt(0) ? BigInt(0) : nuevoSaldo;
+
+      // Si la libreta estaba BLOQUEADA y el saldo queda en 0, desbloquear automáticamente
+      const desbloquear = libreta.estado === 'BLOQUEADA' && saldoFinal === BigInt(0);
 
       const result = await prisma.$transaction(async (tx) => {
         const pago = await tx.pago.create({
@@ -196,7 +226,11 @@ router.post(
 
         await tx.libreta.update({
           where: { id },
-          data: { saldo_actual: nuevoSaldo < BigInt(0) ? BigInt(0) : nuevoSaldo },
+          data: {
+            saldo_actual: saldoFinal,
+            saldo_vencido: saldoFinal === BigInt(0) ? BigInt(0) : libreta.saldo_vencido,
+            ...(desbloquear ? { estado: 'ACTIVA' } : {}),
+          },
         });
 
         await tx.libretaMovimiento.create({
@@ -207,7 +241,7 @@ router.post(
             descripcion: `Pago con ${forma_pago}`,
             monto_debe: BigInt(0),
             monto_haber: montoBigInt,
-            saldo_resultante: nuevoSaldo < BigInt(0) ? BigInt(0) : nuevoSaldo,
+            saldo_resultante: saldoFinal,
             usuario_id: req.user!.userId,
           },
         });
@@ -220,11 +254,15 @@ router.post(
         modulo: 'LIBRETAS',
         accion: 'PAGO',
         registroId: id,
-        valorNuevo: { monto, forma_pago },
+        valorNuevo: { monto, forma_pago, desbloqueo_automatico: desbloquear },
         ip: req.ip,
       });
 
-      res.json({ success: true, message: 'Pago registrado', data: result });
+      res.json({
+        success: true,
+        message: desbloquear ? 'Pago registrado. Libreta desbloqueada automáticamente.' : 'Pago registrado',
+        data: result,
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ success: false, message: 'Error al registrar pago' });
@@ -291,5 +329,66 @@ router.post(
     }
   }
 );
+
+// GET /libretas/:id/estado-cuenta/pdf
+router.get('/:id/estado-cuenta/pdf', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+
+    const libreta = await prisma.libreta.findUnique({
+      where: { id },
+      include: { cliente: true },
+    });
+    if (!libreta) {
+      res.status(404).json({ success: false, message: 'Libreta no encontrada' });
+      return;
+    }
+
+    // Movimientos del mes actual
+    const hoy = new Date();
+    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const movimientos = await prisma.libretaMovimiento.findMany({
+      where: {
+        libreta_id: id,
+        fecha_movimiento: { gte: inicioMes, lte: finMes },
+      },
+      orderBy: { fecha_movimiento: 'desc' },
+    });
+
+    const nombresMes = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const periodo = `${nombresMes[hoy.getMonth()]} ${hoy.getFullYear()}`;
+
+    const buffer = await generarPDFEstadoCuenta({
+      libreta: {
+        id: libreta.id,
+        tipo: libreta.tipo,
+        saldo_actual: libreta.saldo_actual,
+        limite_credito: libreta.limite_credito,
+        cliente: {
+          nombre: libreta.cliente?.nombre ?? 'Sin nombre',
+          documento_numero: libreta.cliente?.documento_numero ?? null,
+        },
+      },
+      movimientos: movimientos.map((m) => ({
+        fecha_movimiento: m.fecha_movimiento,
+        descripcion: m.descripcion,
+        monto_debe: m.monto_debe,
+        monto_haber: m.monto_haber,
+        saldo_resultante: m.saldo_resultante,
+      })),
+      periodo,
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="estado-cuenta-${id}.pdf"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al generar PDF' });
+  }
+});
 
 export default router;

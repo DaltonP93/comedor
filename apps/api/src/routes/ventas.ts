@@ -194,6 +194,28 @@ router.post(
                 },
               });
             }
+
+            // Deduct ingredients via recipe if exists
+            const receta = await tx.receta.findFirst({
+              where: { producto_id: item.producto_id, activo: true },
+              include: { items: true },
+            });
+            if (receta) {
+              for (const recetaItem of receta.items) {
+                await tx.stockMovimiento.create({
+                  data: {
+                    producto_id: recetaItem.insumo_id,
+                    sucursal_id,
+                    tipo_movimiento: 'SALIDA',
+                    referencia_tipo: 'RECETA_VENTA',
+                    referencia_id: v.id,
+                    cantidad: -(Number(recetaItem.cantidad) * Number(item.cantidad)),
+                    observacion: `Consumo por receta: ${receta.nombre}`,
+                    usuario_id: req.user!.userId,
+                  },
+                });
+              }
+            }
           }
         }
 
@@ -310,7 +332,7 @@ router.post('/:id/anular', requirePermiso('VENTAS:EDITAR'), async (req: Request,
       // Anular venta
       await tx.venta.update({ where: { id }, data: { estado: 'ANULADA' } });
 
-      // Reverse stock movements
+      // Reverse direct stock movements
       const stockMovs = await tx.stockMovimiento.findMany({
         where: { referencia_tipo: 'VENTA', referencia_id: id },
       });
@@ -325,6 +347,26 @@ router.post('/:id/anular', requirePermiso('VENTAS:EDITAR'), async (req: Request,
             referencia_id: id,
             cantidad: -Number(mov.cantidad), // reverse
             observacion: `Anulación de venta #${id}. ${motivo || ''}`,
+            usuario_id: req.user!.userId,
+          },
+        });
+      }
+
+      // Reverse recipe-based stock movements
+      const recetaMovs = await tx.stockMovimiento.findMany({
+        where: { referencia_tipo: 'RECETA_VENTA', referencia_id: id },
+      });
+
+      for (const mov of recetaMovs) {
+        await tx.stockMovimiento.create({
+          data: {
+            producto_id: mov.producto_id,
+            sucursal_id: mov.sucursal_id,
+            tipo_movimiento: 'AJUSTE',
+            referencia_tipo: 'ANULACION_RECETA',
+            referencia_id: id,
+            cantidad: -Number(mov.cantidad), // reverse
+            observacion: `Anulación receta de venta #${id}. ${motivo || ''}`,
             usuario_id: req.user!.userId,
           },
         });
@@ -441,6 +483,28 @@ router.post(
           });
         }
 
+        // Deduct ingredients via recipe if exists
+        const recetaKilo = await tx.receta.findFirst({
+          where: { producto_id, activo: true },
+          include: { items: true },
+        });
+        if (recetaKilo) {
+          for (const recetaItem of recetaKilo.items) {
+            await tx.stockMovimiento.create({
+              data: {
+                producto_id: recetaItem.insumo_id,
+                sucursal_id,
+                tipo_movimiento: 'SALIDA',
+                referencia_tipo: 'RECETA_VENTA',
+                referencia_id: v.id,
+                cantidad: -(Number(recetaItem.cantidad) * peso_kg),
+                observacion: `Consumo por receta: ${recetaKilo.nombre}`,
+                usuario_id: req.user!.userId,
+              },
+            });
+          }
+        }
+
         await tx.pago.create({
           data: {
             venta_id: v.id,
@@ -526,6 +590,48 @@ router.post(
             items: { create: itemsCalculados },
           },
         });
+
+        // Stock movements and recipe deductions for libreta items
+        for (const item of items as VentaItem[]) {
+          if (item.producto_id) {
+            const producto = await tx.producto.findUnique({ where: { id: item.producto_id } });
+            if (producto?.controla_stock) {
+              await tx.stockMovimiento.create({
+                data: {
+                  producto_id: item.producto_id,
+                  sucursal_id,
+                  tipo_movimiento: 'SALIDA',
+                  referencia_tipo: 'VENTA',
+                  referencia_id: v.id,
+                  cantidad: -Math.abs(Number(item.cantidad)),
+                  usuario_id: req.user!.userId,
+                },
+              });
+            }
+
+            // Deduct ingredients via recipe if exists
+            const recetaLibreta = await tx.receta.findFirst({
+              where: { producto_id: item.producto_id, activo: true },
+              include: { items: true },
+            });
+            if (recetaLibreta) {
+              for (const recetaItem of recetaLibreta.items) {
+                await tx.stockMovimiento.create({
+                  data: {
+                    producto_id: recetaItem.insumo_id,
+                    sucursal_id,
+                    tipo_movimiento: 'SALIDA',
+                    referencia_tipo: 'RECETA_VENTA',
+                    referencia_id: v.id,
+                    cantidad: -(Number(recetaItem.cantidad) * Number(item.cantidad)),
+                    observacion: `Consumo por receta: ${recetaLibreta.nombre}`,
+                    usuario_id: req.user!.userId,
+                  },
+                });
+              }
+            }
+          }
+        }
 
         const nuevoSaldo = libreta.saldo_actual + total;
         await tx.libreta.update({

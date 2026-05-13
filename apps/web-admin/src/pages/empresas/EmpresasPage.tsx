@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { empresasApi } from '../../api/endpoints';
-import { PageLoader } from '../../components/UI/LoadingSpinner';
-import { Alert } from '../../components/UI/Alert';
 import { Button } from '../../components/UI/Button';
 import { Input } from '../../components/UI/Input';
+import { Table } from '../../components/UI/Table';
+import { Badge } from '../../components/UI/Badge';
 import { Modal } from '../../components/UI/Modal';
+import { Pagination } from '../../components/UI/Pagination';
+import { Alert } from '../../components/UI/Alert';
 import { getErrorMessage } from '../../lib/utils';
 
 interface Empresa {
@@ -15,123 +18,290 @@ interface Empresa {
   email: string | null;
   direccion: string | null;
   activo: boolean;
-  _count?: { clientes: number; libretas: number };
+  total_clientes: number;
+  total_libretas_activas: number;
 }
 
-export function EmpresasPage() {
+interface FormData {
+  nombre: string;
+  ruc: string;
+  telefono: string;
+  email: string;
+  direccion: string;
+}
+
+const formInicial: FormData = {
+  nombre: '',
+  ruc: '',
+  telefono: '',
+  email: '',
+  direccion: '',
+};
+
+export default function EmpresasPage() {
+  const navigate = useNavigate();
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<Empresa | null>(null);
-  const [form, setForm] = useState({ nombre: '', ruc: '', telefono: '', email: '', direccion: '' });
-  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [buscar, setBuscar] = useState('');
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [empresaEditando, setEmpresaEditando] = useState<Empresa | null>(null);
+  const [form, setForm] = useState<FormData>(formInicial);
+  const [guardando, setGuardando] = useState(false);
 
-  useEffect(() => { load(); }, []);
-
-  const load = async () => {
+  const loadEmpresas = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await empresasApi.listar();
+      const res = await empresasApi.listar({ buscar: buscar || undefined, page, limit: 20 });
       setEmpresas(res.data.data as Empresa[]);
+      setMeta(res.data.meta || { total: 0, totalPages: 1 });
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
+  }, [buscar, page]);
+
+  useEffect(() => {
+    const timer = setTimeout(loadEmpresas, 300);
+    return () => clearTimeout(timer);
+  }, [loadEmpresas]);
+
+  const abrirNueva = () => {
+    setEmpresaEditando(null);
+    setForm(formInicial);
+    setModalAbierto(true);
   };
 
-  const openNew = () => {
-    setEditing(null);
-    setForm({ nombre: '', ruc: '', telefono: '', email: '', direccion: '' });
-    setShowModal(true);
+  const abrirEditar = (empresa: Empresa) => {
+    setEmpresaEditando(empresa);
+    setForm({
+      nombre: empresa.nombre,
+      ruc: empresa.ruc || '',
+      telefono: empresa.telefono || '',
+      email: empresa.email || '',
+      direccion: empresa.direccion || '',
+    });
+    setModalAbierto(true);
   };
 
-  const openEdit = (e: Empresa) => {
-    setEditing(e);
-    setForm({ nombre: e.nombre, ruc: e.ruc || '', telefono: e.telefono || '', email: e.email || '', direccion: e.direccion || '' });
-    setShowModal(true);
+  const cerrarModal = () => {
+    setModalAbierto(false);
+    setEmpresaEditando(null);
+    setForm(formInicial);
   };
 
-  const handleSave = async () => {
-    setSaving(true);
+  const guardar = async () => {
+    if (!form.nombre.trim()) {
+      setError('El nombre es requerido');
+      return;
+    }
+    setGuardando(true);
     try {
-      if (editing) {
-        await empresasApi.actualizar(editing.id, form);
+      const data: Record<string, unknown> = {
+        nombre: form.nombre,
+        ruc: form.ruc || null,
+        telefono: form.telefono || null,
+        email: form.email || null,
+        direccion: form.direccion || null,
+      };
+
+      if (empresaEditando) {
+        await empresasApi.actualizar(empresaEditando.id, data);
+        setSuccess('Empresa actualizada correctamente');
       } else {
-        await empresasApi.crear(form);
+        await empresasApi.crear(data);
+        setSuccess('Empresa creada correctamente');
       }
-      setShowModal(false);
-      load();
+      cerrarModal();
+      loadEmpresas();
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
-      setSaving(false);
+      setGuardando(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('¿Desactivar esta empresa?')) return;
+  const eliminar = async (empresa: Empresa) => {
+    if (!confirm(`¿Eliminar la empresa "${empresa.nombre}"?`)) return;
     try {
-      await empresasApi.eliminar(id);
-      load();
+      await empresasApi.eliminar(empresa.id);
+      setSuccess('Empresa eliminada');
+      loadEmpresas();
     } catch (err) {
       setError(getErrorMessage(err));
     }
   };
 
-  if (loading) return <PageLoader />;
+  const columns = [
+    {
+      key: 'nombre',
+      header: 'Nombre',
+      render: (row: Empresa) => (
+        <div>
+          <p className="font-medium text-gray-900">{row.nombre}</p>
+          {row.email && <p className="text-xs text-gray-500">{row.email}</p>}
+        </div>
+      ),
+    },
+    {
+      key: 'ruc',
+      header: 'RUC',
+      render: (row: Empresa) => <span className="text-gray-600">{row.ruc || '-'}</span>,
+    },
+    {
+      key: 'telefono',
+      header: 'Teléfono',
+      render: (row: Empresa) => <span>{row.telefono || '-'}</span>,
+    },
+    {
+      key: 'clientes',
+      header: 'Clientes',
+      render: (row: Empresa) => (
+        <span className="text-gray-700 font-medium">{row.total_clientes}</span>
+      ),
+    },
+    {
+      key: 'libretas_activas',
+      header: 'Libretas activas',
+      render: (row: Empresa) => (
+        <span className={`font-medium ${row.total_libretas_activas > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
+          {row.total_libretas_activas}
+        </span>
+      ),
+    },
+    {
+      key: 'estado',
+      header: 'Estado',
+      render: (row: Empresa) => (
+        <Badge variant={row.activo ? 'success' : 'default'} size="sm">
+          {row.activo ? 'Activa' : 'Inactiva'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'acciones',
+      header: '',
+      render: (row: Empresa) => (
+        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => abrirEditar(row)}
+            className="text-gray-600 hover:text-gray-800 text-sm"
+          >
+            Editar
+          </button>
+          <button
+            onClick={() => eliminar(row)}
+            className="text-red-500 hover:text-red-700 text-sm"
+          >
+            Eliminar
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Empresas / Convenios</h1>
-          <p className="text-gray-500 text-sm mt-1">Gestión de empresas asociadas y convenios</p>
+          <h1 className="text-2xl font-bold text-gray-900">Empresas</h1>
+          <p className="text-gray-500 text-sm">Gestión de empresas y convenios</p>
         </div>
-        <Button onClick={openNew}>+ Nueva Empresa</Button>
+        <Button onClick={abrirNueva}>
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Nueva empresa
+        </Button>
       </div>
 
-      {error && <Alert type="error">{error}</Alert>}
+      {error && <Alert type="error" onClose={() => setError('')}>{error}</Alert>}
+      {success && <Alert type="success" onClose={() => setSuccess('')}>{success}</Alert>}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {empresas.map((e) => (
-          <div key={e.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="font-semibold text-gray-900">{e.nombre}</h3>
-                {e.ruc && <p className="text-sm text-gray-500">RUC: {e.ruc}</p>}
-              </div>
-              <span className={`px-2 py-1 text-xs rounded-full ${e.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                {e.activo ? 'Activa' : 'Inactiva'}
-              </span>
+      <div className="bg-white rounded-lg border border-gray-200 p-4">
+        <Input
+          placeholder="Buscar por nombre o RUC..."
+          value={buscar}
+          onChange={(e) => { setBuscar(e.target.value); setPage(1); }}
+        />
+      </div>
+
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <Table
+          columns={columns}
+          data={empresas}
+          loading={loading}
+          emptyMessage="No se encontraron empresas"
+          onRowClick={(row) => navigate(`/empresas/${row.id}`)}
+        />
+        <Pagination
+          page={page}
+          totalPages={meta.totalPages}
+          total={meta.total}
+          limit={20}
+          onPageChange={setPage}
+        />
+      </div>
+
+      <Modal
+        isOpen={modalAbierto}
+        onClose={cerrarModal}
+        title={empresaEditando ? 'Editar empresa' : 'Nueva empresa'}
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+            <Input
+              value={form.nombre}
+              onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+              placeholder="Nombre de la empresa"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">RUC</label>
+            <Input
+              value={form.ruc}
+              onChange={(e) => setForm({ ...form, ruc: e.target.value })}
+              placeholder="RUC de la empresa"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+              <Input
+                value={form.telefono}
+                onChange={(e) => setForm({ ...form, telefono: e.target.value })}
+                placeholder="Teléfono"
+              />
             </div>
-            {e.telefono && <p className="text-sm text-gray-600">📞 {e.telefono}</p>}
-            {e.email && <p className="text-sm text-gray-600">✉️ {e.email}</p>}
-            <div className="flex gap-4 mt-3 text-sm text-gray-500">
-              <span>{e._count?.clientes || 0} funcionarios</span>
-              <span>{e._count?.libretas || 0} libretas</span>
-            </div>
-            <div className="flex gap-2 mt-4 pt-3 border-t">
-              <button onClick={() => openEdit(e)} className="text-sm text-blue-600 hover:text-blue-800">Editar</button>
-              <button onClick={() => handleDelete(e.id)} className="text-sm text-red-600 hover:text-red-800">Desactivar</button>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="email@empresa.com"
+              />
             </div>
           </div>
-        ))}
-        {empresas.length === 0 && (
-          <div className="col-span-full text-center py-12 text-gray-500">No hay empresas registradas</div>
-        )}
-      </div>
-
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editing ? 'Editar Empresa' : 'Nueva Empresa'}>
-        <div className="space-y-4">
-          <Input label="Nombre *" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
-          <Input label="RUC" value={form.ruc} onChange={(e) => setForm({ ...form, ruc: e.target.value })} />
-          <Input label="Teléfono" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
-          <Input label="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          <Input label="Dirección" value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
-          <div className="flex justify-end gap-3 pt-4">
-            <Button variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={saving || !form.nombre}>{saving ? 'Guardando...' : 'Guardar'}</Button>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+            <Input
+              value={form.direccion}
+              onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+              placeholder="Dirección de la empresa"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={cerrarModal}>Cancelar</Button>
+            <Button onClick={guardar} disabled={guardando}>
+              {guardando ? 'Guardando...' : empresaEditando ? 'Actualizar' : 'Crear empresa'}
+            </Button>
           </div>
         </div>
       </Modal>

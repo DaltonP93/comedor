@@ -76,6 +76,16 @@ export function CocinaPage() {
     [est]: allReservas.filter((r) => r.estado === est).length,
   }), {} as Record<string, number>);
 
+  // Producción sugerida: reservas confirmadas + 20% extra para estimado
+  const produccionSugerida = menus.map((menu) => {
+    const reservasConfirmadas = menu.reservas.filter(
+      (r) => r.estado === 'CONFIRMADA' || r.estado === 'EN_COCINA' || r.estado === 'PREPARADA' || r.estado === 'ENTREGADA'
+    ).reduce((sum, r) => sum + r.cantidad, 0);
+    const extra = Math.ceil(reservasConfirmadas * 0.2);
+    const sugerido = reservasConfirmadas + extra;
+    return { menu, reservasConfirmadas, extra, sugerido };
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -89,6 +99,34 @@ export function CocinaPage() {
       </div>
 
       {error && <Alert type="error" onClose={() => setError('')}>{error}</Alert>}
+
+      {/* Producción sugerida */}
+      {produccionSugerida.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <h2 className="text-sm font-semibold text-amber-800 mb-3">Producción Sugerida</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {produccionSugerida.map(({ menu, reservasConfirmadas, extra, sugerido }) => (
+              <div key={menu.id} className="bg-white rounded-lg border border-amber-200 p-3">
+                <p className="text-sm font-medium text-gray-900 truncate">{menu.titulo}</p>
+                <div className="mt-2 space-y-1 text-xs text-gray-600">
+                  <div className="flex justify-between">
+                    <span>Reservas confirmadas:</span>
+                    <span className="font-medium text-gray-900">{reservasConfirmadas}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Estimado extra (20%):</span>
+                    <span className="font-medium text-blue-700">+{extra}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-amber-100 pt-1">
+                    <span className="font-semibold text-amber-800">Producción sugerida:</span>
+                    <span className="font-bold text-amber-800 text-sm">{sugerido}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Status counters */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

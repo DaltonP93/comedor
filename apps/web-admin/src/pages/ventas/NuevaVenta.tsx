@@ -52,16 +52,14 @@ export function NuevaVenta() {
   const [descuento, setDescuento] = useState('0');
   const [modoKilo, setModoKilo] = useState(false);
   const [pesoKg, setPesoKg] = useState('');
-  const [productoKilo, setProductoKilo] = useState<Produto | null>(null);
+  const [productoKilo, setProductoKilo] = useState<Producto | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const searchRef = useRef<NodeJS.Timeout | null>(null);
 
-  type Produto = Producto;
-
   useEffect(() => {
     productosApi.listar({ activo: 'true', limit: '200' }).then((res) => {
-      setProductos(res.data.data as Produto[]);
+      setProductos(res.data.data as Producto[]);
     });
   }, []);
 
@@ -96,7 +94,7 @@ export function NuevaVenta() {
     }, 300);
   }, [buscarCliente]);
 
-  const addProducto = (prod: Produto) => {
+  const addProducto = (prod: Producto) => {
     const existing = cart.findIndex((item) => item.producto_id === prod.id && !item.es_kilo);
     if (existing >= 0) {
       setCart((prev) =>
@@ -124,6 +122,7 @@ export function NuevaVenta() {
 
   const addKilo = () => {
     if (!productoKilo || !pesoKg) return;
+
     const peso = parseFloat(pesoKg);
     if (isNaN(peso) || peso <= 0) return;
     setCart((prev) => [

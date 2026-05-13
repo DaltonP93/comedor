@@ -32,9 +32,9 @@ import configuracionesRouter from './routes/configuraciones';
 import auditoriaRouter from './routes/auditoria';
 import recetasRouter from './routes/recetas';
 import empresasRouter from './routes/empresas';
-import facturasRouter from './routes/facturas';
 import notificacionesRouter from './routes/notificaciones';
-import portalRouter from './routes/portal';
+import pagosRouter from './routes/pagos';
+import facturasRouter from './routes/facturas';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -96,9 +96,9 @@ app.use('/api/configuraciones', configuracionesRouter);
 app.use('/api/auditoria', auditoriaRouter);
 app.use('/api/recetas', recetasRouter);
 app.use('/api/empresas', empresasRouter);
-app.use('/api/facturas', facturasRouter);
 app.use('/api/notificaciones', notificacionesRouter);
-app.use('/api/portal', portalRouter);
+app.use('/api/pagos', pagosRouter);
+app.use('/api/facturas', facturasRouter);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

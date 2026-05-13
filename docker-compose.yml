@@ -49,6 +49,15 @@ services:
     depends_on:
       - api
 
+  web-cliente:
+    build:
+      context: ./apps/web-cliente
+      dockerfile: Dockerfile
+    ports:
+      - "3002:80"
+    depends_on:
+      - api
+
   nginx:
     image: nginx:alpine
     ports:

@@ -4,8 +4,9 @@
   "private": true,
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=apps/api\" \"npm run dev --workspace=apps/web-admin\" \"npm run dev --workspace=apps/portal-cliente\"",
-    "build": "npm run build --workspace=apps/api && npm run build --workspace=apps/web-admin && npm run build --workspace=apps/portal-cliente",
+    "dev": "concurrently \"npm run dev --workspace=apps/api\" \"npm run dev --workspace=apps/web-admin\"",
+    "dev:cliente": "npm run dev --workspace=apps/web-cliente",
+    "build": "npm run build --workspace=apps/api && npm run build --workspace=apps/web-admin",
     "db:migrate": "npm run db:migrate --workspace=packages/database",
     "db:push": "npm run db:push --workspace=packages/database",
     "db:generate": "npm run db:generate --workspace=packages/database",

@@ -21,6 +21,7 @@ import { ReservasPage } from './pages/reservas/ReservasPage';
 import { ReservaDetalle } from './pages/reservas/ReservaDetalle';
 import { VentasPage } from './pages/ventas/VentasPage';
 import { NuevaVenta } from './pages/ventas/NuevaVenta';
+import { VentaDetalle } from './pages/ventas/VentaDetalle';
 import { LibretasPage } from './pages/libretas/LibretasPage';
 import { LibretaDetalle } from './pages/libretas/LibretaDetalle';
 import { StockPage } from './pages/stock/StockPage';
@@ -31,9 +32,21 @@ import { ReportesDashboard } from './pages/reportes/ReportesDashboard';
 import { ReporteVentas } from './pages/reportes/ReporteVentas';
 import { ReporteStock } from './pages/reportes/ReporteStock';
 import { ReporteLibreta } from './pages/reportes/ReporteLibreta';
+import ReportePrediccion from './pages/reportes/ReportePrediccion';
+import ReporteRentabilidad from './pages/reportes/ReporteRentabilidad';
+import ReporteDesperdicio from './pages/reportes/ReporteDesperdicio';
 import { ConfiguracionPage } from './pages/configuracion/ConfiguracionPage';
 import { UsuariosPage } from './pages/usuarios/UsuariosPage';
 import { AuditoriaPage } from './pages/auditoria/AuditoriaPage';
+import { RecetasPage } from './pages/recetas/RecetasPage';
+import { RecetaForm } from './pages/recetas/RecetaForm';
+import EmpresasPage from './pages/empresas/EmpresasPage';
+import EmpresaDetalle from './pages/empresas/EmpresaDetalle';
+import NotificacionesPage from './pages/notificaciones/NotificacionesPage';
+import ConciliacionPage from './pages/pagos/ConciliacionPage';
+import PagosManualesPage from './pages/pagos/PagosManualesPage';
+import FacturasPage from './pages/facturas/FacturasPage';
+import ConfiguracionTributaria from './pages/configuracion/ConfiguracionTributaria';
 
 // New pages
 import { ProveedoresPage } from './pages/proveedores/ProveedoresPage';
@@ -102,6 +115,7 @@ function AppRoutes() {
         {/* Ventas */}
         <Route path="/ventas" element={<VentasPage />} />
         <Route path="/ventas/nueva" element={<NuevaVenta />} />
+        <Route path="/ventas/:id" element={<VentaDetalle />} />
 
         {/* Libretas */}
         <Route path="/libretas" element={<LibretasPage />} />
@@ -112,6 +126,11 @@ function AppRoutes() {
         <Route path="/stock/entrada" element={<EntradaMercaderia />} />
         <Route path="/stock/kardex/:productoId" element={<KardexPage />} />
 
+        {/* Recetas */}
+        <Route path="/recetas" element={<RecetasPage />} />
+        <Route path="/recetas/nueva" element={<RecetaForm />} />
+        <Route path="/recetas/:id/editar" element={<RecetaForm />} />
+
         {/* Cocina */}
         <Route path="/cocina" element={<CocinaPage />} />
 
@@ -120,6 +139,24 @@ function AppRoutes() {
         <Route path="/reportes/ventas" element={<ReporteVentas />} />
         <Route path="/reportes/stock" element={<ReporteStock />} />
         <Route path="/reportes/libretas" element={<ReporteLibreta />} />
+        <Route path="/reportes/prediccion" element={<ReportePrediccion />} />
+        <Route path="/reportes/rentabilidad" element={<ReporteRentabilidad />} />
+        <Route path="/reportes/desperdicio" element={<ReporteDesperdicio />} />
+
+        {/* Empresas */}
+        <Route path="/empresas" element={<EmpresasPage />} />
+        <Route path="/empresas/:id" element={<EmpresaDetalle />} />
+
+        {/* Notificaciones */}
+        <Route path="/notificaciones" element={<NotificacionesPage />} />
+
+        {/* Pagos */}
+        <Route path="/pagos/conciliacion" element={<ConciliacionPage />} />
+        <Route path="/pagos/manuales" element={<PagosManualesPage />} />
+
+        {/* Facturación */}
+        <Route path="/facturas" element={<FacturasPage />} />
+        <Route path="/configuracion/tributaria" element={<ConfiguracionTributaria />} />
 
         {/* Proveedores */}
         <Route path="/proveedores" element={<ProveedoresPage />} />

@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
+import { body, query } from 'express-validator';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
+import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
 
 const router = Router();
@@ -9,28 +11,52 @@ router.use(authenticate);
 // GET /empresas
 router.get('/', requirePermiso('CLIENTES:VER'), async (req: Request, res: Response): Promise<void> => {
   try {
-    const { activo, search } = req.query;
-    const where: Record<string, unknown> = {};
-    if (activo !== undefined) where.activo = activo === 'true';
-    if (search) {
+    const { buscar, page = '1', limit = '20' } = req.query;
+    const pageNum = parseInt(String(page));
+    const limitNum = parseInt(String(limit));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: Record<string, unknown> = { activo: true };
+    if (buscar) {
       where.OR = [
-        { nombre: { contains: String(search), mode: 'insensitive' } },
-        { ruc: { contains: String(search), mode: 'insensitive' } },
+        { nombre: { contains: String(buscar), mode: 'insensitive' } },
+        { ruc: { contains: String(buscar), mode: 'insensitive' } },
       ];
     }
 
-    const empresas = await prisma.empresa.findMany({
-      where,
-      include: {
-        _count: { select: { clientes: true, libretas: true } },
-      },
-      orderBy: { nombre: 'asc' },
-    });
+    const [empresas, total] = await Promise.all([
+      prisma.empresa.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { nombre: 'asc' },
+        include: {
+          _count: {
+            select: { clientes: true },
+          },
+          libretas: {
+            where: { estado: 'ACTIVA' },
+            select: { id: true },
+          },
+        },
+      }),
+      prisma.empresa.count({ where }),
+    ]);
 
-    res.json({ success: true, data: empresas });
+    const data = empresas.map((e) => ({
+      ...e,
+      total_clientes: e._count.clientes,
+      total_libretas_activas: e.libretas.length,
+    }));
+
+    res.json({
+      success: true,
+      data,
+      meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: 'Error al listar empresas' });
+    res.status(500).json({ success: false, message: 'Error al obtener empresas' });
   }
 });
 
@@ -42,15 +68,31 @@ router.get('/:id', requirePermiso('CLIENTES:VER'), async (req: Request, res: Res
       where: { id },
       include: {
         clientes: {
-          include: { cliente: { select: { id: true, nombre: true, documento_numero: true, telefono: true } } },
+          include: {
+            cliente: {
+              select: {
+                id: true,
+                nombre: true,
+                telefono: true,
+                email: true,
+                estado: true,
+                documento_numero: true,
+              },
+            },
+          },
         },
         libretas: {
-          include: { cliente: { select: { id: true, nombre: true } } },
+          include: {
+            cliente: {
+              select: { id: true, nombre: true },
+            },
+          },
+          orderBy: { creado_en: 'desc' },
         },
       },
     });
 
-    if (!empresa) {
+    if (!empresa || !empresa.activo) {
       res.status(404).json({ success: false, message: 'Empresa no encontrada' });
       return;
     }
@@ -63,60 +105,105 @@ router.get('/:id', requirePermiso('CLIENTES:VER'), async (req: Request, res: Res
 });
 
 // POST /empresas
-router.post('/', requirePermiso('CLIENTES:CREAR'), async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { nombre, ruc, telefono, email, direccion } = req.body;
+router.post(
+  '/',
+  requirePermiso('CLIENTES:CREAR'),
+  [
+    body('nombre').notEmpty().withMessage('Nombre requerido'),
+    body('email').optional({ nullable: true }).isEmail().withMessage('Email inválido'),
+    handleValidation,
+  ],
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { nombre, ruc, telefono, email, direccion } = req.body;
 
-    const empresa = await prisma.empresa.create({
-      data: { nombre, ruc, telefono, email, direccion },
-    });
+      const empresa = await prisma.empresa.create({
+        data: { nombre, ruc, telefono, email, direccion },
+      });
 
-    await registrarAuditoria({
-      usuarioId: req.user!.userId,
-      modulo: 'EMPRESAS',
-      accion: 'CREAR',
-      registroId: empresa.id,
-      valorNuevo: { nombre, ruc },
-      ip: req.ip,
-    });
+      await registrarAuditoria({
+        usuarioId: req.user!.userId,
+        modulo: 'EMPRESAS',
+        accion: 'CREAR',
+        registroId: empresa.id,
+        valorNuevo: { nombre, ruc, telefono, email, direccion },
+        ip: req.ip,
+      });
 
-    res.status(201).json({ success: true, data: empresa });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: 'Error al crear empresa' });
+      res.status(201).json({ success: true, message: 'Empresa creada', data: empresa });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error al crear empresa' });
+    }
   }
-});
+);
 
 // PUT /empresas/:id
-router.put('/:id', requirePermiso('CLIENTES:EDITAR'), async (req: Request, res: Response): Promise<void> => {
-  try {
-    const id = parseInt(req.params.id);
-    const { nombre, ruc, telefono, email, direccion, activo } = req.body;
+router.put(
+  '/:id',
+  requirePermiso('CLIENTES:EDITAR'),
+  [
+    body('nombre').optional().notEmpty().withMessage('Nombre no puede estar vacío'),
+    body('email').optional({ nullable: true }).isEmail().withMessage('Email inválido'),
+    handleValidation,
+  ],
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const id = parseInt(req.params.id);
+      const anterior = await prisma.empresa.findUnique({ where: { id } });
 
-    const empresa = await prisma.empresa.update({
-      where: { id },
-      data: { nombre, ruc, telefono, email, direccion, activo },
-    });
+      if (!anterior || !anterior.activo) {
+        res.status(404).json({ success: false, message: 'Empresa no encontrada' });
+        return;
+      }
 
-    await registrarAuditoria({
-      usuarioId: req.user!.userId,
-      modulo: 'EMPRESAS',
-      accion: 'EDITAR',
-      registroId: empresa.id,
-      ip: req.ip,
-    });
+      const { nombre, ruc, telefono, email, direccion } = req.body;
+      const empresa = await prisma.empresa.update({
+        where: { id },
+        data: { nombre, ruc, telefono, email, direccion },
+      });
 
-    res.json({ success: true, data: empresa });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: 'Error al actualizar empresa' });
+      await registrarAuditoria({
+        usuarioId: req.user!.userId,
+        modulo: 'EMPRESAS',
+        accion: 'EDITAR',
+        registroId: id,
+        valorAnterior: anterior as unknown as Record<string, unknown>,
+        valorNuevo: req.body,
+        ip: req.ip,
+      });
+
+      res.json({ success: true, message: 'Empresa actualizada', data: empresa });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error al actualizar empresa' });
+    }
   }
-});
+);
 
 // DELETE /empresas/:id
-router.delete('/:id', requirePermiso('CLIENTES:ELIMINAR'), async (req: Request, res: Response): Promise<void> => {
+router.delete('/:id', requirePermiso('CLIENTES:EDITAR'), async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
+    const empresa = await prisma.empresa.findUnique({ where: { id } });
+
+    if (!empresa || !empresa.activo) {
+      res.status(404).json({ success: false, message: 'Empresa no encontrada' });
+      return;
+    }
+
+    const libretasActivas = await prisma.libreta.count({
+      where: { empresa_id: id, estado: 'ACTIVA' },
+    });
+
+    if (libretasActivas > 0) {
+      res.status(400).json({
+        success: false,
+        message: `No se puede eliminar la empresa porque tiene ${libretasActivas} libreta(s) activa(s)`,
+      });
+      return;
+    }
+
     await prisma.empresa.update({ where: { id }, data: { activo: false } });
 
     await registrarAuditoria({
@@ -124,10 +211,11 @@ router.delete('/:id', requirePermiso('CLIENTES:ELIMINAR'), async (req: Request, 
       modulo: 'EMPRESAS',
       accion: 'ELIMINAR',
       registroId: id,
+      valorAnterior: empresa as unknown as Record<string, unknown>,
       ip: req.ip,
     });
 
-    res.json({ success: true, message: 'Empresa desactivada' });
+    res.json({ success: true, message: 'Empresa eliminada' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: 'Error al eliminar empresa' });

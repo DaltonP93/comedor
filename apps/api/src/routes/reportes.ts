@@ -316,4 +316,315 @@ router.get('/cocina', requirePermiso('COCINA:VER'), async (req: Request, res: Re
   }
 });
 
+// GET /reportes/prediccion
+router.get('/prediccion', requirePermiso('REPORTES:VER'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { sucursal_id } = req.query;
+
+    // Fecha objetivo: por defecto mañana
+    let fechaObjetivo: Date;
+    if (req.query.fecha) {
+      fechaObjetivo = new Date(String(req.query.fecha));
+    } else {
+      fechaObjetivo = new Date();
+      fechaObjetivo.setDate(fechaObjetivo.getDate() + 1);
+    }
+    fechaObjetivo.setHours(0, 0, 0, 0);
+
+    const diaSemana = fechaObjetivo.getDay(); // 0=Domingo … 6=Sábado
+
+    // Obtener menús de las últimas 8 semanas con el mismo día de semana
+    const hace8Semanas = new Date(fechaObjetivo);
+    hace8Semanas.setDate(hace8Semanas.getDate() - 8 * 7);
+
+    const menuWhere: Record<string, unknown> = {
+      fecha: { gte: hace8Semanas, lt: fechaObjetivo },
+      estado: { not: 'CANCELADO' },
+    };
+    if (sucursal_id) menuWhere.sucursal_id = parseInt(String(sucursal_id));
+
+    const menusHistoricos = await prisma.menu.findMany({
+      where: menuWhere,
+      include: {
+        items: { include: { producto: true } },
+        reservas: { where: { estado: 'ENTREGADA' } },
+      },
+      orderBy: { fecha: 'asc' },
+    });
+
+    // Filtrar por mismo día de semana
+    const menusMismoDia = menusHistoricos.filter((m) => {
+      const d = new Date(m.fecha);
+      return d.getDay() === diaSemana;
+    });
+
+    // Para cada menú histórico, calcular porciones vendidas
+    const historicoConPorciones = await Promise.all(
+      menusMismoDia.map(async (menu) => {
+        // Reservas entregadas
+        const porcionesReservas = menu.reservas.reduce((sum, r) => sum + r.cantidad, 0);
+
+        // Ventas completadas de tipo MENU o MOSTRADOR para esa fecha
+        const fechaMenu = new Date(menu.fecha);
+        fechaMenu.setHours(0, 0, 0, 0);
+        const fechaMenuFin = new Date(fechaMenu);
+        fechaMenuFin.setDate(fechaMenuFin.getDate() + 1);
+
+        const ventasWhere: Record<string, unknown> = {
+          creado_en: { gte: fechaMenu, lt: fechaMenuFin },
+          estado: 'COMPLETADA',
+          tipo_venta: { in: ['MENU', 'MOSTRADOR'] },
+        };
+        if (sucursal_id) ventasWhere.sucursal_id = parseInt(String(sucursal_id));
+
+        const ventasAgg = await prisma.ventaItem.aggregate({
+          where: {
+            venta: ventasWhere as Record<string, unknown>,
+          },
+          _sum: { cantidad: true },
+        });
+
+        const porcionesVentas = Number(ventasAgg._sum.cantidad ?? 0);
+        const porcionesTotal = porcionesReservas + porcionesVentas;
+
+        return {
+          fecha: fechaMenu.toISOString().split('T')[0],
+          menu_id: menu.id,
+          titulo: menu.titulo,
+          porciones: porcionesTotal,
+        };
+      })
+    );
+
+    // Calcular estadísticas
+    const porciones = historicoConPorciones.map((h) => h.porciones);
+    const promedio = porciones.length > 0 ? porciones.reduce((a, b) => a + b, 0) / porciones.length : 0;
+    const maximo = porciones.length > 0 ? Math.max(...porciones) : 0;
+    const minimo = porciones.length > 0 ? Math.min(...porciones) : 0;
+    const prediccion = Math.ceil(promedio * 1.1);
+
+    // Reservas ya confirmadas para la fecha objetivo
+    const fechaObjetivoFin = new Date(fechaObjetivo);
+    fechaObjetivoFin.setDate(fechaObjetivoFin.getDate() + 1);
+
+    const reservasWhere: Record<string, unknown> = {
+      menu: { fecha: { gte: fechaObjetivo, lt: fechaObjetivoFin } },
+      estado: { in: ['PENDIENTE', 'CONFIRMADA', 'EN_PREPARACION'] },
+    };
+    if (sucursal_id) (reservasWhere.menu as Record<string, unknown>).sucursal_id = parseInt(String(sucursal_id));
+
+    const reservasConfirmadas = await prisma.reserva.aggregate({
+      where: reservasWhere,
+      _sum: { cantidad: true },
+    });
+
+    const reservasYaConfirmadas = Number(reservasConfirmadas._sum.cantidad ?? 0);
+    const produccionSugerida = prediccion + reservasYaConfirmadas;
+
+    const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+    res.json({
+      success: true,
+      data: {
+        fecha: fechaObjetivo.toISOString().split('T')[0],
+        dia_semana: diasSemana[diaSemana],
+        historico: historicoConPorciones,
+        promedio: Math.round(promedio * 10) / 10,
+        maximo,
+        minimo,
+        prediccion,
+        reservas_ya_confirmadas: reservasYaConfirmadas,
+        produccion_sugerida: produccionSugerida,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al calcular predicción de demanda' });
+  }
+});
+
+// GET /reportes/rentabilidad
+router.get('/rentabilidad', requirePermiso('REPORTES:VER'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fecha_desde, fecha_hasta, sucursal_id } = req.query;
+
+    const ventaWhere: Record<string, unknown> = { estado: 'COMPLETADA' };
+    if (sucursal_id) ventaWhere.sucursal_id = parseInt(String(sucursal_id));
+    if (fecha_desde || fecha_hasta) {
+      ventaWhere.creado_en = {};
+      if (fecha_desde) (ventaWhere.creado_en as Record<string, Date>).gte = new Date(String(fecha_desde));
+      if (fecha_hasta) {
+        const hasta = new Date(String(fecha_hasta));
+        hasta.setHours(23, 59, 59, 999);
+        (ventaWhere.creado_en as Record<string, Date>).lte = hasta;
+      }
+    }
+
+    // Obtener todos los items de ventas del período agrupados por producto
+    const itemsAgrupados = await prisma.ventaItem.groupBy({
+      by: ['producto_id'],
+      where: {
+        producto_id: { not: null },
+        venta: ventaWhere,
+      },
+      _sum: { total: true, cantidad: true },
+    });
+
+    // Para cada producto, obtener nombre y costo promedio
+    const productosIds = itemsAgrupados
+      .map((g) => g.producto_id)
+      .filter((id): id is number => id !== null);
+
+    const productos = await prisma.producto.findMany({
+      where: { id: { in: productosIds } },
+      select: { id: true, nombre: true, costo_promedio: true },
+    });
+
+    const productosMap = new Map(productos.map((p) => [p.id, p]));
+
+    const resultado = itemsAgrupados
+      .map((grupo) => {
+        const producto = productosMap.get(grupo.producto_id!);
+        if (!producto) return null;
+
+        const totalVendido = Number(grupo._sum.total ?? 0);
+        const unidadesVendidas = Number(grupo._sum.cantidad ?? 0);
+        const costoTotal = unidadesVendidas * Number(producto.costo_promedio);
+        const ganancia = totalVendido - costoTotal;
+        const margenPct = totalVendido > 0 ? (ganancia / totalVendido) * 100 : 0;
+
+        return {
+          producto_id: producto.id,
+          nombre: producto.nombre,
+          unidades_vendidas: unidadesVendidas,
+          total_vendido: totalVendido,
+          costo_total: costoTotal,
+          ganancia,
+          margen_pct: Math.round(margenPct * 100) / 100,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null)
+      .sort((a, b) => b.ganancia - a.ganancia);
+
+    const totalIngresos = resultado.reduce((sum, r) => sum + r.total_vendido, 0);
+    const totalCostos = resultado.reduce((sum, r) => sum + r.costo_total, 0);
+    const gananciaTotal = totalIngresos - totalCostos;
+    const margenPromedio = totalIngresos > 0 ? (gananciaTotal / totalIngresos) * 100 : 0;
+
+    res.json({
+      success: true,
+      data: {
+        productos: resultado,
+        resumen: {
+          total_ingresos: totalIngresos,
+          total_costos: totalCostos,
+          ganancia_total: gananciaTotal,
+          margen_promedio: Math.round(margenPromedio * 100) / 100,
+        },
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al generar reporte de rentabilidad' });
+  }
+});
+
+// GET /reportes/desperdicio
+router.get('/desperdicio', requirePermiso('REPORTES:VER'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fecha_desde, fecha_hasta } = req.query;
+
+    const movWhere: Record<string, unknown> = {};
+    if (fecha_desde || fecha_hasta) {
+      movWhere.creado_en = {};
+      if (fecha_desde) (movWhere.creado_en as Record<string, Date>).gte = new Date(String(fecha_desde));
+      if (fecha_hasta) {
+        const hasta = new Date(String(fecha_hasta));
+        hasta.setHours(23, 59, 59, 999);
+        (movWhere.creado_en as Record<string, Date>).lte = hasta;
+      }
+    }
+
+    // Entradas del período (COMPRA)
+    const entradas = await prisma.stockMovimiento.groupBy({
+      by: ['producto_id'],
+      where: { ...movWhere, tipo_movimiento: 'ENTRADA', referencia_tipo: { in: ['COMPRA', null] } },
+      _sum: { cantidad: true },
+    });
+
+    // Salidas del período (VENTA + RECETA_VENTA)
+    const salidas = await prisma.stockMovimiento.groupBy({
+      by: ['producto_id'],
+      where: {
+        ...movWhere,
+        tipo_movimiento: 'SALIDA',
+        referencia_tipo: { in: ['VENTA', 'RECETA_VENTA'] },
+      },
+      _sum: { cantidad: true },
+    });
+
+    // Stock real acumulado total por producto (todos los movimientos, sin filtro de fecha)
+    const stockReal = await prisma.stockMovimiento.groupBy({
+      by: ['producto_id'],
+      _sum: { cantidad: true },
+    });
+
+    // Construir mapa de stock real
+    const stockRealMap = new Map(stockReal.map((s) => [s.producto_id, Number(s._sum.cantidad ?? 0)]));
+
+    // Construir mapa de entradas y salidas del período
+    const entradasMap = new Map(entradas.map((e) => [e.producto_id, Number(e._sum.cantidad ?? 0)]));
+    const salidasMap = new Map(salidas.map((s) => [s.producto_id, Number(s._sum.cantidad ?? 0)]));
+
+    // Unión de todos los productos presentes
+    const todosProductoIds = new Set([...entradasMap.keys(), ...salidasMap.keys()]);
+
+    const productos = await prisma.producto.findMany({
+      where: { id: { in: Array.from(todosProductoIds) }, activo: true },
+      select: { id: true, nombre: true, costo_promedio: true, unidad_medida: true },
+    });
+
+    const resultado = productos
+      .map((prod) => {
+        const entradaPeriodo = entradasMap.get(prod.id) ?? 0;
+        const salidaPeriodo = salidasMap.get(prod.id) ?? 0;
+        const saldoTeorico = entradaPeriodo - salidaPeriodo;
+        const stockActual = stockRealMap.get(prod.id) ?? 0;
+        const diferencia = saldoTeorico - stockActual;
+        const valorPerdida = diferencia > 0 ? diferencia * Number(prod.costo_promedio) : 0;
+
+        return {
+          producto_id: prod.id,
+          nombre: prod.nombre,
+          unidad_medida: prod.unidad_medida,
+          entrada_periodo: entradaPeriodo,
+          salida_periodo: salidaPeriodo,
+          saldo_teorico: saldoTeorico,
+          stock_actual: stockActual,
+          diferencia,
+          valor_perdida_estimada: valorPerdida,
+        };
+      })
+      // Solo mostrar productos donde hay posible desperdicio (saldo_teorico > stock_actual)
+      .filter((r) => r.diferencia > 0)
+      .sort((a, b) => b.valor_perdida_estimada - a.valor_perdida_estimada);
+
+    const totalPerdidaEstimada = resultado.reduce((sum, r) => sum + r.valor_perdida_estimada, 0);
+
+    res.json({
+      success: true,
+      data: {
+        productos: resultado,
+        resumen: {
+          total_productos_con_merma: resultado.length,
+          valor_perdida_total_estimada: totalPerdidaEstimada,
+        },
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al generar reporte de desperdicio' });
+  }
+});
+
 export default router;

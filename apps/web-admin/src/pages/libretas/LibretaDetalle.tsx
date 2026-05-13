@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { libretasApi } from '../../api/endpoints';
+import apiClient from '../../api/client';
 import { Button } from '../../components/UI/Button';
 import { PageBack } from '../../components/UI/PageBack';
 import { Badge, estadoBadge } from '../../components/UI/Badge';
@@ -22,6 +23,7 @@ export function LibretaDetalle() {
   const [montoPago, setMontoPago] = useState('');
   const [formaPago, setFormaPago] = useState('EFECTIVO');
   const [saving, setSaving] = useState(false);
+  const [descargandoPDF, setDescargandoPDF] = useState(false);
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -38,6 +40,25 @@ export function LibretaDetalle() {
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDescargarPDF = async () => {
+    setDescargandoPDF(true);
+    try {
+      const response = await apiClient.get(`/libretas/${id}/estado-cuenta/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `estado-cuenta-${id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setDescargandoPDF(false);
     }
   };
 
@@ -79,6 +100,9 @@ export function LibretaDetalle() {
           </div>
           <p className="text-gray-500 text-sm">{String(cliente?.nombre)} · {String(libreta.tipo)}</p>
         </div>
+        <Button onClick={handleDescargarPDF} variant="secondary" loading={descargandoPDF}>
+          Descargar PDF
+        </Button>
         {libreta.estado === 'ACTIVA' && (
           <Button onClick={() => setShowPagoModal(true)} variant="success">
             Registrar pago

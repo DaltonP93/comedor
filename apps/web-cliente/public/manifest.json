@@ -1,0 +1,14 @@
+{
+  "name": "Comedor - Portal del Cliente",
+  "short_name": "Comedor",
+  "description": "Portal de reservas y cuenta del comedor",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f766e",
+  "theme_color": "#0f766e",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

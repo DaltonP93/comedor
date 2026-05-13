@@ -23,6 +23,27 @@ const reportes = [
     icon: '📒',
     color: 'yellow',
   },
+  {
+    path: '/reportes/prediccion',
+    title: 'Predicción de Demanda',
+    description: 'Estimación de porciones a producir basada en historial de 8 semanas',
+    icon: '🔮',
+    color: 'purple',
+  },
+  {
+    path: '/reportes/rentabilidad',
+    title: 'Rentabilidad por Producto',
+    description: 'Margen de ganancia por producto con exportación CSV',
+    icon: '💰',
+    color: 'teal',
+  },
+  {
+    path: '/reportes/desperdicio',
+    title: 'Desperdicio y Merma',
+    description: 'Detecta diferencias entre stock teórico y real para identificar pérdidas',
+    icon: '⚠️',
+    color: 'red',
+  },
 ];
 
 const colorClasses: Record<string, string> = {
@@ -30,6 +51,8 @@ const colorClasses: Record<string, string> = {
   green: 'bg-green-50 border-green-200 hover:bg-green-100',
   yellow: 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100',
   red: 'bg-red-50 border-red-200 hover:bg-red-100',
+  purple: 'bg-purple-50 border-purple-200 hover:bg-purple-100',
+  teal: 'bg-teal-50 border-teal-200 hover:bg-teal-100',
 };
 
 export function ReportesDashboard() {
