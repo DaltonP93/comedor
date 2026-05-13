@@ -14,6 +14,8 @@ import path from 'path';
 import { requestId } from './middleware/requestId';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './lib/logger';
+import { prisma } from './lib/prisma';
+import { redisClient } from './lib/redis';
 
 import authRouter from './routes/auth';
 import clientesRouter from './routes/clientes';
@@ -76,6 +78,35 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Health check
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Health check DB
+app.get('/health/db', async (_req: Request, res: Response) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', database: 'connected' });
+  } catch {
+    res.status(503).json({ status: 'error', database: 'disconnected' });
+  }
+});
+
+// Health check Redis
+app.get('/health/redis', async (_req: Request, res: Response) => {
+  try {
+    await redisClient.ping?.() ?? redisClient.set('health', '1');
+    res.json({ status: 'ok', redis: 'connected' });
+  } catch {
+    res.status(503).json({ status: 'ok', redis: 'unavailable (not critical)' });
+  }
+});
+
+// Health check completo
+app.get('/health/full', async (_req: Request, res: Response) => {
+  const checks: Record<string, string> = {};
+  try { await prisma.$queryRaw`SELECT 1`; checks.database = 'ok'; } catch { checks.database = 'error'; }
+  try { await redisClient.set('health_check', '1'); checks.redis = 'ok'; } catch { checks.redis = 'unavailable'; }
+  const allOk = checks.database === 'ok';
+  res.status(allOk ? 200 : 503).json({ status: allOk ? 'ok' : 'degraded', checks, timestamp: new Date().toISOString() });
 });
 
 // Serve static uploads

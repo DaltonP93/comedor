@@ -7,13 +7,13 @@
     "dev": "concurrently \"npm run dev --workspace=apps/api\" \"npm run dev --workspace=apps/web-admin\"",
     "dev:cliente": "npm run dev --workspace=apps/web-cliente",
     "build": "npm run build --workspace=apps/api && npm run build --workspace=apps/web-admin && npm run build --workspace=apps/web-cliente",
-    "lint": "npm run lint --workspace=apps/web-admin",
-    "typecheck": "tsc --noEmit --workspace=apps/api",
+    "lint": "npm run lint --workspace=apps/api && npm run lint --workspace=apps/web-admin",
+    "typecheck": "npm run typecheck --workspace=apps/api && npm run typecheck --workspace=apps/web-admin",
+    "test": "npm run test --workspace=apps/api",
     "db:migrate": "npm run db:migrate --workspace=packages/database",
-    "db:push": "npm run db:push --workspace=packages/database",
+    "db:deploy": "cd packages/database && npx prisma migrate deploy",
     "db:generate": "npm run db:generate --workspace=packages/database",
-    "db:seed": "npm run db:seed --workspace=packages/database",
-    "pg:start": "powershell -ExecutionPolicy Bypass -File scripts/start-portable-postgres.ps1"
+    "db:seed": "npm run db:seed --workspace=packages/database"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

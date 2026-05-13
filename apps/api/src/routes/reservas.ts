@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
+import { AppError } from '../middleware/errorHandler';
 
 const router = Router();
 router.use(authenticate);
@@ -102,22 +103,23 @@ router.post(
         return;
       }
 
-      // Check cupo
-      if (menu.cupo_total !== null) {
-        const cupoDisponible = menu.cupo_total - menu.cupo_reservado;
-        if (cantidad > cupoDisponible) {
-          res.status(400).json({
-            success: false,
-            message: `Cupo insuficiente. Disponible: ${cupoDisponible}`,
-          });
-          return;
-        }
-      }
-
       // Calculate total
       const total = BigInt(menu.precio) * BigInt(cantidad);
 
       const reserva = await prisma.$transaction(async (tx) => {
+        // Actualización atómica de cupo con bloqueo a nivel de fila
+        const result = await tx.$queryRaw<Array<{ id: number }>>`
+          UPDATE menus
+          SET cupo_reservado = cupo_reservado + ${cantidad}
+          WHERE id = ${menu_id}
+            AND estado = 'PUBLICADO'
+            AND (cupo_total IS NULL OR cupo_reservado + ${cantidad} <= cupo_total)
+          RETURNING id
+        `;
+        if (!result || result.length === 0) {
+          throw new AppError(409, 'MENU_SIN_CUPO', 'No hay cupo disponible para este menú');
+        }
+
         const r = await tx.reserva.create({
           data: {
             cliente_id,
@@ -131,12 +133,6 @@ router.post(
             total,
           },
           include: { cliente: true, menu: true },
-        });
-
-        // Update cupo
-        await tx.menu.update({
-          where: { id: menu_id },
-          data: { cupo_reservado: { increment: cantidad } },
         });
 
         return r;
@@ -204,12 +200,13 @@ router.post('/:id/cancelar', requirePermiso('RESERVAS:EDITAR'), async (req: Requ
         data: { estado: 'CANCELADA' },
       });
 
-      // Release cupo
+      // Liberar cupo atómicamente (solo si el menú tiene cupo reservado)
       if (reserva.menu) {
-        await tx.menu.update({
-          where: { id: reserva.menu_id },
-          data: { cupo_reservado: { decrement: reserva.cantidad } },
-        });
+        await tx.$queryRaw`
+          UPDATE menus
+          SET cupo_reservado = GREATEST(0, cupo_reservado - ${reserva.cantidad})
+          WHERE id = ${reserva.menu_id}
+        `;
       }
 
       return r;
