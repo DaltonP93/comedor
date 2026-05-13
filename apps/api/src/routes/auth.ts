@@ -1,36 +1,28 @@
 import { Router, Request, Response } from 'express';
 import { body } from 'express-validator';
 import bcrypt from 'bcryptjs';
+import { createHash } from 'crypto';
 import { prisma } from '../lib/prisma';
 import { generateToken, generateRefreshToken, verifyRefreshToken } from '../lib/jwt';
 import { handleValidation } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
 import { registrarAuditoria } from '../lib/audit';
+import { logger } from '../lib/logger';
+import { rateLimitMiddleware } from '../middleware/rateLimit';
 
 const router = Router();
 
-// Simple in-memory rate limiter: max 5 failed attempts per IP per 15 minutes
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = loginAttempts.get(ip);
-  if (!entry || entry.resetAt < now) {
-    loginAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
-    return true;
-  }
-  if (entry.count >= 5) return false;
-  entry.count++;
-  return true;
-}
-
-function resetRateLimit(ip: string): void {
-  loginAttempts.delete(ip);
-}
+const loginRateLimit = rateLimitMiddleware({
+  keyPrefix: 'login',
+  windowSeconds: 900,
+  maxAttempts: 5,
+  message: 'Demasiados intentos de login. Intente en 15 minutos.',
+});
 
 // POST /auth/login
 router.post(
   '/login',
+  loginRateLimit,
   [
     body('email').isEmail().withMessage('Email inválido'),
     body('password').notEmpty().withMessage('Contraseña requerida'),
@@ -38,12 +30,6 @@ router.post(
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const ip = req.ip || 'unknown';
-      if (!checkRateLimit(ip)) {
-        res.status(429).json({ success: false, message: 'Demasiados intentos. Intente en 15 minutos.' });
-        return;
-      }
-
       const { email, password } = req.body;
 
       const usuario = await prisma.usuario.findUnique({
@@ -72,9 +58,19 @@ router.post(
         sucursalId: usuario.sucursal_id,
       };
 
-      resetRateLimit(ip);
       const token = generateToken(payload);
       const refreshToken = generateRefreshToken(payload);
+
+      const hash = createHash('sha256').update(refreshToken).digest('hex');
+      await prisma.userSession.create({
+        data: {
+          usuario_id: usuario.id,
+          refresh_token_hash: hash,
+          ip: req.ip,
+          user_agent: req.headers['user-agent'],
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      });
 
       await registrarAuditoria({
         usuarioId: usuario.id,
@@ -100,7 +96,7 @@ router.post(
         },
       });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en login', { message: (error as Error).message });
       res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
   }
@@ -116,6 +112,21 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
     }
 
     const decoded = verifyRefreshToken(refreshToken);
+
+    const hash = createHash('sha256').update(refreshToken).digest('hex');
+    const session = await prisma.userSession.findFirst({
+      where: {
+        refresh_token_hash: hash,
+        revoked_at: null,
+        expires_at: { gt: new Date() },
+      },
+    });
+
+    if (!session) {
+      res.status(401).json({ success: false, message: 'Sesión inválida o expirada' });
+      return;
+    }
+
     const usuario = await prisma.usuario.findUnique({
       where: { id: decoded.userId, activo: true },
       include: { rol: true },
@@ -135,6 +146,15 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
 
     const token = generateToken(payload);
     const newRefreshToken = generateRefreshToken(payload);
+    const newHash = createHash('sha256').update(newRefreshToken).digest('hex');
+
+    await prisma.userSession.update({
+      where: { id: session.id },
+      data: {
+        refresh_token_hash: newHash,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
 
     res.json({
       success: true,
@@ -180,13 +200,27 @@ router.get('/me', authenticate, async (req: Request, res: Response): Promise<voi
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en /me', { message: (error as Error).message });
     res.status(500).json({ success: false, message: 'Error interno' });
   }
 });
 
 // POST /auth/logout
 router.post('/logout', authenticate, async (req: Request, res: Response): Promise<void> => {
+  const { refreshToken } = req.body;
+  if (refreshToken) {
+    const hash = createHash('sha256').update(refreshToken).digest('hex');
+    await prisma.userSession.updateMany({
+      where: { refresh_token_hash: hash, revoked_at: null },
+      data: { revoked_at: new Date() },
+    });
+  } else {
+    await prisma.userSession.updateMany({
+      where: { usuario_id: req.user!.userId, revoked_at: null },
+      data: { revoked_at: new Date() },
+    });
+  }
+
   await registrarAuditoria({
     usuarioId: req.user!.userId,
     modulo: 'AUTH',

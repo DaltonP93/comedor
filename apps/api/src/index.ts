@@ -5,11 +5,15 @@ import 'dotenv/config';
   return this.toString();
 };
 
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import path from 'path';
+
+import { requestId } from './middleware/requestId';
+import { errorHandler } from './middleware/errorHandler';
+import { logger } from './lib/logger';
 
 import authRouter from './routes/auth';
 import clientesRouter from './routes/clientes';
@@ -35,9 +39,12 @@ import empresasRouter from './routes/empresas';
 import notificacionesRouter from './routes/notificaciones';
 import pagosRouter from './routes/pagos';
 import facturasRouter from './routes/facturas';
+import cajaRouter from './routes/caja';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+app.use(requestId);
 
 function corsOrigin(): string | string[] {
   const raw = process.env.CORS_ORIGIN || 'http://localhost:3000';
@@ -99,6 +106,7 @@ app.use('/api/empresas', empresasRouter);
 app.use('/api/notificaciones', notificacionesRouter);
 app.use('/api/pagos', pagosRouter);
 app.use('/api/facturas', facturasRouter);
+app.use('/api/caja', cajaRouter);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
@@ -106,17 +114,11 @@ app.use((_req: Request, res: Response) => {
 });
 
 // Global error handler
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('Error no manejado:', err);
-  res.status(500).json({
-    success: false,
-    message: process.env.NODE_ENV === 'production' ? 'Error interno del servidor' : err.message,
-  });
-});
+app.use(errorHandler);
 
 app.listen(PORT, () => {
-  console.log(`🚀 API corriendo en http://localhost:${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  logger.info(`API corriendo en http://localhost:${PORT}`);
+  logger.info(`Health check: http://localhost:${PORT}/health`);
 });
 
 export default app;
