@@ -82,3 +82,19 @@ jobs:
 
       - name: Lint web-admin
         run: npm run lint --workspace=apps/web-admin
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API Docker image
+        run: docker build -t comedor-api:test -f apps/api/Dockerfile .
+
+      - name: Build web-admin Docker image
+        run: docker build -t comedor-web-admin:test apps/web-admin/
+
+      - name: Build web-cliente Docker image
+        run: docker build -t comedor-web-cliente:test apps/web-cliente/

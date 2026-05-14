@@ -680,4 +680,105 @@ router.post(
   }
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /facturas/:id/nota-credito
+// ─────────────────────────────────────────────────────────────────────────────
+router.post(
+  '/:id/nota-credito',
+  requirePermiso('FACTURAS:ANULAR'),
+  [
+    body('motivo').notEmpty().withMessage('El motivo es obligatorio'),
+    handleValidation,
+  ],
+  async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const { motivo } = req.body as { motivo: string };
+
+    // Buscar documento fiscal original
+    const original = await prisma.documentoFiscal.findFirst({
+      where: { venta_id: Number(id) },
+      include: { venta: true },
+    });
+
+    if (!original) throw new AppError(404, 'Factura no encontrada', 'FACTURA_NO_ENCONTRADA');
+    if (original.estado === 'ANULADA') throw new AppError(400, 'La factura ya está anulada', 'FACTURA_ANULADA');
+
+    // Leer configuración fiscal
+    const [estabConf, puntoConf] = await Promise.all([
+      prisma.configuracion.findUnique({ where: { clave: 'ESTABLECIMIENTO' } }),
+      prisma.configuracion.findUnique({ where: { clave: 'PUNTO_EXPEDICION' } }),
+    ]);
+    const establecimiento = estabConf?.valor || '001';
+    const puntoExpedicion = puntoConf?.valor || '001';
+
+    const resultado = await prisma.$transaction(async (tx: PrismaTx) => {
+      const numero = await obtenerSiguienteNumero(tx, establecimiento, puntoExpedicion, 'NOTA_CREDITO');
+      const numero_formateado = formatearNumeroFactura(establecimiento, puntoExpedicion, numero);
+
+      const notaCredito = await tx.documentoFiscal.create({
+        data: {
+          // La nota de crédito no lleva venta_id propio (está ligada por documento_relacionado_id)
+          cliente_id: original.cliente_id ?? undefined,
+          tipo_documento: 'NOTA_CREDITO',
+          condicion: original.condicion,
+          establecimiento,
+          punto_expedicion: puntoExpedicion,
+          numero,
+          numero_formateado,
+          subtotal: original.subtotal,
+          exento: original.exento,
+          iva_5: original.iva_5,
+          iva_10: original.iva_10,
+          iva_total: original.iva_total,
+          total: original.total,
+          estado: 'EMITIDA_LOCAL',
+          documento_relacionado_id: original.id,
+          motivo_anulacion: motivo,
+        },
+      });
+
+      await tx.documentoFiscal.update({
+        where: { id: original.id },
+        data: { estado: 'ANULADA', motivo_anulacion: motivo },
+      });
+
+      await tx.documentoFiscalEvento.create({
+        data: {
+          documento_fiscal_id: notaCredito.id,
+          tipo_evento: 'EMISION_NOTA_CREDITO',
+          estado_nuevo: 'EMITIDA_LOCAL',
+          payload: { motivo, original_id: original.id } as Record<string, unknown>,
+        },
+      });
+
+      await tx.documentoFiscalEvento.create({
+        data: {
+          documento_fiscal_id: original.id,
+          tipo_evento: 'ANULACION',
+          estado_anterior: original.estado,
+          estado_nuevo: 'ANULADA',
+          payload: { motivo, nota_credito_id: notaCredito.id } as Record<string, unknown>,
+        },
+      });
+
+      return notaCredito;
+    });
+
+    await registrarAuditoria({
+      usuarioId: req.user!.userId,
+      modulo: 'FACTURAS',
+      accion: 'NOTA_CREDITO',
+      registroId: id,
+      valorNuevo: { nota_credito_id: resultado.id, motivo },
+      ip: req.ip,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: resultado,
+      message: 'Nota de crédito emitida correctamente',
+    });
+  }
+);
+
 export default router;

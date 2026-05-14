@@ -11,6 +11,11 @@ import ReservarPage from './pages/ReservarPage';
 import MisReservasPage from './pages/MisReservasPage';
 import MiLibretaPage from './pages/MiLibretaPage';
 import PagarPage from './pages/PagarPage';
+import RegistroPage from './pages/RegistroPage';
+import RecuperarPasswordPage from './pages/RecuperarPasswordPage';
+import PerfilPage from './pages/PerfilPage';
+import MisFacturasPage from './pages/MisFacturasPage';
+import NotificacionesPage from './pages/NotificacionesPage';
 
 function LayoutRoute({ children }: { children: ReactNode }) {
   return (
@@ -40,6 +45,8 @@ function AppRoutes() {
         path="/login"
         element={isAuthenticated ? <Navigate to="/menu" replace /> : <LoginPage />}
       />
+      <Route path="/registro" element={<RegistroPage />} />
+      <Route path="/recuperar-password" element={<RecuperarPasswordPage />} />
 
       <Route
         path="/menu"
@@ -60,6 +67,18 @@ function AppRoutes() {
       <Route
         path="/pagar"
         element={<LayoutRoute><PagarPage /></LayoutRoute>}
+      />
+      <Route
+        path="/perfil"
+        element={<LayoutRoute><PerfilPage /></LayoutRoute>}
+      />
+      <Route
+        path="/mis-facturas"
+        element={<LayoutRoute><MisFacturasPage /></LayoutRoute>}
+      />
+      <Route
+        path="/notificaciones"
+        element={<LayoutRoute><NotificacionesPage /></LayoutRoute>}
       />
 
       <Route path="/" element={<Navigate to="/menu" replace />} />
