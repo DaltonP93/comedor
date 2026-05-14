@@ -17,7 +17,9 @@ export default function Layout({ children }: LayoutProps) {
   const navItems = [
     { to: '/menu', label: 'Menú', icon: '🍽️' },
     { to: '/mis-reservas', label: 'Reservas', icon: '📋' },
-    { to: '/mi-libreta', label: 'Mi Libreta', icon: '📒' },
+    { to: '/mi-libreta', label: 'Libreta', icon: '📒' },
+    { to: '/mis-facturas', label: 'Facturas', icon: '🧾' },
+    { to: '/perfil', label: 'Perfil', icon: '👤' },
   ];
 
   return (

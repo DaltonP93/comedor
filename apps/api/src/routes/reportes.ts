@@ -480,7 +480,7 @@ router.get('/rentabilidad', requirePermiso('REPORTES:VER'), async (req: Request,
       select: { id: true, nombre: true, costo_promedio: true },
     });
 
-    const productosMap = new Map(productos.map((p) => [p.id, p]));
+    const productosMap = new Map<number, { id: number; nombre: string; costo_promedio: bigint | null }>(productos.map((p) => [p.id, p]));
 
     const resultado = itemsAgrupados
       .map((grupo) => {
@@ -489,7 +489,7 @@ router.get('/rentabilidad', requirePermiso('REPORTES:VER'), async (req: Request,
 
         const totalVendido = Number(grupo._sum.total ?? 0);
         const unidadesVendidas = Number(grupo._sum.cantidad ?? 0);
-        const costoTotal = unidadesVendidas * Number(producto.costo_promedio);
+        const costoTotal = unidadesVendidas * Number(producto.costo_promedio ?? 0);
         const ganancia = totalVendido - costoTotal;
         const margenPct = totalVendido > 0 ? (ganancia / totalVendido) * 100 : 0;
 
@@ -570,11 +570,11 @@ router.get('/desperdicio', requirePermiso('REPORTES:VER'), async (req: Request, 
     });
 
     // Construir mapa de stock real
-    const stockRealMap = new Map(stockReal.map((s) => [s.producto_id, Number(s._sum.cantidad ?? 0)]));
+    const stockRealMap = new Map<number | null, number>(stockReal.map((s) => [s.producto_id, Number(s._sum.cantidad ?? 0)]));
 
     // Construir mapa de entradas y salidas del período
-    const entradasMap = new Map(entradas.map((e) => [e.producto_id, Number(e._sum.cantidad ?? 0)]));
-    const salidasMap = new Map(salidas.map((s) => [s.producto_id, Number(s._sum.cantidad ?? 0)]));
+    const entradasMap = new Map<number | null, number>(entradas.map((e) => [e.producto_id, Number(e._sum.cantidad ?? 0)]));
+    const salidasMap = new Map<number | null, number>(salidas.map((s) => [s.producto_id, Number(s._sum.cantidad ?? 0)]));
 
     // Unión de todos los productos presentes
     const todosProductoIds = new Set([...entradasMap.keys(), ...salidasMap.keys()]);
@@ -586,12 +586,12 @@ router.get('/desperdicio', requirePermiso('REPORTES:VER'), async (req: Request, 
 
     const resultado = productos
       .map((prod) => {
-        const entradaPeriodo = entradasMap.get(prod.id) ?? 0;
-        const salidaPeriodo = salidasMap.get(prod.id) ?? 0;
-        const saldoTeorico = entradaPeriodo - salidaPeriodo;
-        const stockActual = stockRealMap.get(prod.id) ?? 0;
-        const diferencia = saldoTeorico - stockActual;
-        const valorPerdida = diferencia > 0 ? diferencia * Number(prod.costo_promedio) : 0;
+        const entradaPeriodo: number = entradasMap.get(prod.id) ?? 0;
+        const salidaPeriodo: number = salidasMap.get(prod.id) ?? 0;
+        const saldoTeorico: number = entradaPeriodo - salidaPeriodo;
+        const stockActual: number = stockRealMap.get(prod.id) ?? 0;
+        const diferencia: number = saldoTeorico - stockActual;
+        const valorPerdida = diferencia > 0 ? diferencia * Number(prod.costo_promedio ?? 0) : 0;
 
         return {
           producto_id: prod.id,

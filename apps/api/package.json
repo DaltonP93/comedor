@@ -22,7 +22,8 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "pdfkit": "^0.15.0"
+    "pdfkit": "^0.15.0",
+    "redis": "^4.6.13"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

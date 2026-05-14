@@ -24,16 +24,16 @@ export async function encolarNotificacion(job: Omit<NotificacionJob, 'id' | 'int
     creadoEn: new Date().toISOString(),
   };
   try {
-    await redisClient.lpush(QUEUE_KEY, JSON.stringify(notif));
-    logger.info({ notificacionId: notif.id, tipo: notif.tipo, canal: notif.canal }, 'Notificación encolada');
+    await redisClient.lPush(QUEUE_KEY, JSON.stringify(notif));
+    logger.info('Notificación encolada', { notificacionId: notif.id, tipo: notif.tipo, canal: notif.canal });
   } catch (error) {
-    logger.error({ error, notif }, 'Error al encolar notificación');
+    logger.error('Error al encolar notificación', { error: String(error) });
   }
 }
 
 export async function obtenerProximaNotificacion(): Promise<NotificacionJob | null> {
   try {
-    const item = await redisClient.rpoplpush(QUEUE_KEY, PROCESSING_KEY);
+    const item = await redisClient.rPopLPush(QUEUE_KEY, PROCESSING_KEY);
     if (!item) return null;
     return JSON.parse(item) as NotificacionJob;
   } catch {
@@ -43,16 +43,16 @@ export async function obtenerProximaNotificacion(): Promise<NotificacionJob | nu
 
 export async function confirmarProcesada(jobId: string): Promise<void> {
   try {
-    const items = await redisClient.lrange(PROCESSING_KEY, 0, -1);
+    const items = await redisClient.lRange(PROCESSING_KEY, 0, -1);
     for (const item of items) {
       const job = JSON.parse(item) as NotificacionJob;
       if (job.id === jobId) {
-        await redisClient.lrem(PROCESSING_KEY, 1, item);
+        await redisClient.lRem(PROCESSING_KEY, 1, item);
         break;
       }
     }
   } catch (error) {
-    logger.error({ error, jobId }, 'Error al confirmar notificación procesada');
+    logger.error('Error al confirmar notificación procesada', { error: String(error), jobId });
   }
 }
 
@@ -60,18 +60,18 @@ export async function reencolarConError(job: NotificacionJob, error: string): Pr
   const MAX_INTENTOS = 3;
   job.intentos += 1;
   try {
-    const items = await redisClient.lrange(PROCESSING_KEY, 0, -1);
+    const items = await redisClient.lRange(PROCESSING_KEY, 0, -1);
     for (const item of items) {
       const j = JSON.parse(item) as NotificacionJob;
-      if (j.id === job.id) { await redisClient.lrem(PROCESSING_KEY, 1, item); break; }
+      if (j.id === job.id) { await redisClient.lRem(PROCESSING_KEY, 1, item); break; }
     }
     if (job.intentos < MAX_INTENTOS) {
-      await redisClient.lpush(QUEUE_KEY, JSON.stringify(job));
-      logger.warn({ jobId: job.id, intentos: job.intentos, error }, 'Notificación re-encolada tras error');
+      await redisClient.lPush(QUEUE_KEY, JSON.stringify(job));
+      logger.warn('Notificación re-encolada tras error', { jobId: job.id, intentos: job.intentos, error });
     } else {
-      logger.error({ jobId: job.id, error }, 'Notificación descartada tras máximo de intentos');
+      logger.error('Notificación descartada tras máximo de intentos', { jobId: job.id, error });
     }
   } catch (err) {
-    logger.error({ err }, 'Error al re-encolar notificación');
+    logger.error('Error al re-encolar notificación', { error: String(err) });
   }
 }

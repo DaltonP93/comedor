@@ -496,4 +496,251 @@ router.get('/pagos', authenticateCliente, async (req: PortalRequest, res: Respon
   }
 });
 
+// ── Alias routes (frontend uses /portal/registro, /portal/perfil, etc.) ───────
+
+router.post(
+  '/registro',
+  [
+    body('nombre').trim().notEmpty().withMessage('Nombre requerido'),
+    body('telefono').trim().notEmpty().withMessage('Telefono requerido'),
+    body('password').isLength({ min: 6 }).withMessage('La contrasena debe tener al menos 6 caracteres'),
+    handleValidation,
+  ],
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { nombre, telefono, email, password } = req.body;
+      const passwordHash = await bcrypt.hash(password, 10);
+      const existing = await prisma.cliente.findFirst({
+        where: {
+          OR: [{ telefono }, { whatsapp: telefono }, ...(email ? [{ email }] : [])],
+        },
+      });
+
+      const cliente = existing
+        ? await prisma.cliente.update({
+            where: { id: existing.id },
+            data: { nombre, telefono, whatsapp: telefono, email: email || existing.email, password_hash: passwordHash, estado: 'ACTIVO', canal_preferido: 'WHATSAPP' },
+          })
+        : await prisma.cliente.create({
+            data: { nombre, telefono, whatsapp: telefono, email: email || undefined, password_hash: passwordHash, tipo_cliente: 'INDIVIDUAL', canal_preferido: 'WHATSAPP' },
+          });
+
+      const libreta = await prisma.libreta.findFirst({ where: { cliente_id: cliente.id, tipo: 'PERSONAL' } });
+      if (!libreta) {
+        await prisma.libreta.create({
+          data: { cliente_id: cliente.id, tipo: 'PERSONAL', limite_credito: BigInt(500000), saldo_actual: BigInt(0), estado: 'ACTIVA' },
+        });
+      }
+
+      res.status(201).json({ success: true, message: 'Cuenta creada', data: { token: signClienteToken(cliente.id), cliente: publicCliente(cliente) } });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error al crear cuenta' });
+    }
+  }
+);
+
+router.get('/perfil', authenticateCliente, async (req: PortalRequest, res: Response): Promise<void> => {
+  try {
+    const cliente = await getClienteOrFail(req, res);
+    if (!cliente) return;
+    res.json({ success: true, data: publicCliente(cliente) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al obtener perfil' });
+  }
+});
+
+router.put('/perfil', authenticateCliente, async (req: PortalRequest, res: Response): Promise<void> => {
+  try {
+    const cliente = await getClienteOrFail(req, res);
+    if (!cliente) return;
+
+    const { nombre, email, telefono, direccion, documento_numero, ruc } = req.body;
+    const updated = await prisma.cliente.update({
+      where: { id: cliente.id },
+      data: {
+        nombre: nombre || cliente.nombre,
+        email: email ?? cliente.email,
+        telefono: telefono ?? cliente.telefono,
+        whatsapp: telefono ?? cliente.whatsapp,
+        direccion: direccion ?? cliente.direccion,
+        documento_numero: documento_numero ?? cliente.documento_numero,
+        ruc: ruc ?? cliente.ruc,
+      },
+    });
+
+    res.json({ success: true, message: 'Perfil actualizado', data: publicCliente(updated) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al actualizar perfil' });
+  }
+});
+
+router.put(
+  '/password',
+  authenticateCliente,
+  [
+    body('password_actual').notEmpty().withMessage('Contrasena actual requerida'),
+    body('password_nueva').isLength({ min: 6 }).withMessage('Nueva contrasena debe tener al menos 6 caracteres'),
+    handleValidation,
+  ],
+  async (req: PortalRequest, res: Response): Promise<void> => {
+    try {
+      const cliente = await getClienteOrFail(req, res);
+      if (!cliente) return;
+
+      const { password_actual, password_nueva } = req.body;
+      if (!cliente.password_hash || !(await bcrypt.compare(password_actual, cliente.password_hash))) {
+        res.status(401).json({ success: false, message: 'Contrasena actual incorrecta' });
+        return;
+      }
+
+      await prisma.cliente.update({
+        where: { id: cliente.id },
+        data: { password_hash: await bcrypt.hash(password_nueva, 10) },
+      });
+
+      res.json({ success: true, message: 'Contrasena actualizada' });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, message: 'Error al cambiar contrasena' });
+    }
+  }
+);
+
+router.post('/recuperar-password', async (req: Request, res: Response): Promise<void> => {
+  // Placeholder: en producción enviar email con link de reset
+  const { email } = req.body;
+  if (!email) {
+    res.status(400).json({ success: false, message: 'Email requerido' });
+    return;
+  }
+  // Siempre responder OK para no exponer si el email existe
+  res.json({ success: true, message: 'Si existe una cuenta con ese email, recibirás instrucciones en breve' });
+});
+
+router.get('/facturas', authenticateCliente, async (req: PortalRequest, res: Response): Promise<void> => {
+  try {
+    const facturas = await prisma.factura.findMany({
+      where: { venta: { cliente_id: req.cliente!.clienteId } },
+      orderBy: { fecha_emision: 'desc' },
+      take: 80,
+      include: { venta: { select: { id: true, total: true, creado_en: true } } },
+    });
+
+    res.json({ success: true, data: facturas });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al obtener facturas' });
+  }
+});
+
+router.get('/facturas/:id/pdf', authenticateCliente, async (req: PortalRequest, res: Response): Promise<void> => {
+  try {
+    const facturaId = Number(req.params.id);
+    const factura = await prisma.factura.findFirst({
+      where: { id: facturaId, venta: { cliente_id: req.cliente!.clienteId } },
+      include: {
+        venta: { include: { items: { include: { producto: true } }, cliente: true } },
+      },
+    });
+
+    if (!factura) {
+      res.status(404).json({ success: false, message: 'Factura no encontrada' });
+      return;
+    }
+
+    // Redirigir a la ruta existente de generación de PDF
+    res.redirect(`/api/facturas/${facturaId}/pdf`);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al obtener factura' });
+  }
+});
+
+router.get('/notificaciones', authenticateCliente, async (req: PortalRequest, res: Response): Promise<void> => {
+  try {
+    const notificaciones = await prisma.notificacion.findMany({
+      where: { cliente_id: req.cliente!.clienteId },
+      orderBy: { creado_en: 'desc' },
+      take: 50,
+    });
+    res.json({ success: true, data: notificaciones });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al obtener notificaciones' });
+  }
+});
+
+router.get('/notificaciones/preferencias', authenticateCliente, async (req: PortalRequest, res: Response): Promise<void> => {
+  try {
+    const consentimiento = await prisma.clienteConsentimiento.findFirst({
+      where: { cliente_id: req.cliente!.clienteId },
+    });
+
+    const defaults = {
+      canal_whatsapp: true,
+      canal_email: true,
+      canal_sms: false,
+      tipo_menu_publicado: true,
+      tipo_reserva_confirmada: true,
+      tipo_libreta_vencida: true,
+      tipo_pago_confirmado: true,
+    };
+
+    if (!consentimiento) {
+      res.json({ success: true, data: defaults });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        canal_whatsapp: consentimiento.acepta_whatsapp,
+        canal_email: consentimiento.acepta_email,
+        canal_sms: consentimiento.acepta_sms,
+        tipo_menu_publicado: true,
+        tipo_reserva_confirmada: true,
+        tipo_libreta_vencida: true,
+        tipo_pago_confirmado: true,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al obtener preferencias' });
+  }
+});
+
+router.put('/notificaciones/preferencias', authenticateCliente, async (req: PortalRequest, res: Response): Promise<void> => {
+  try {
+    const clienteId = req.cliente!.clienteId;
+    const { canal_whatsapp, canal_email, canal_sms } = req.body;
+
+    await prisma.clienteConsentimiento.upsert({
+      where: { cliente_id: clienteId },
+      create: {
+        cliente_id: clienteId,
+        acepta_whatsapp: canal_whatsapp ?? true,
+        acepta_email: canal_email ?? true,
+        acepta_sms: canal_sms ?? false,
+        fecha_consentimiento: new Date(),
+        ip_consentimiento: req.ip || '0.0.0.0',
+        version_politica: '1.0',
+      },
+      update: {
+        acepta_whatsapp: canal_whatsapp ?? true,
+        acepta_email: canal_email ?? true,
+        acepta_sms: canal_sms ?? false,
+        fecha_consentimiento: new Date(),
+      },
+    });
+
+    res.json({ success: true, message: 'Preferencias guardadas' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Error al guardar preferencias' });
+  }
+});
+
 export default router;

@@ -58,6 +58,38 @@ async function main() {
       permisosCreados[codigo] = p.id;
     }
   }
+
+  // Permisos granulares adicionales
+  const permisosGranulares = [
+    { codigo: 'VENTAS:ANULAR', descripcion: 'Anular ventas', modulo: 'VENTAS' },
+    { codigo: 'VENTAS:DESCUENTO', descripcion: 'Aplicar descuentos en ventas', modulo: 'VENTAS' },
+    { codigo: 'CAJA:ABRIR', descripcion: 'Abrir turno de caja', modulo: 'CAJAS' },
+    { codigo: 'CAJA:CERRAR', descripcion: 'Cerrar turno de caja', modulo: 'CAJAS' },
+    { codigo: 'CAJA:AJUSTAR', descripcion: 'Registrar retiros y ajustes de caja', modulo: 'CAJAS' },
+    { codigo: 'LIBRETAS:COBRAR', descripcion: 'Registrar cobros en libretas', modulo: 'LIBRETAS' },
+    { codigo: 'LIBRETAS:BLOQUEAR', descripcion: 'Bloquear/desbloquear libretas', modulo: 'LIBRETAS' },
+    { codigo: 'STOCK:ENTRADA', descripcion: 'Registrar entrada de stock', modulo: 'STOCK' },
+    { codigo: 'STOCK:SALIDA', descripcion: 'Registrar salida de stock', modulo: 'STOCK' },
+    { codigo: 'STOCK:AJUSTE', descripcion: 'Ajustar inventario', modulo: 'STOCK' },
+    { codigo: 'MENUS:PUBLICAR', descripcion: 'Publicar menús del día', modulo: 'MENUS' },
+    { codigo: 'MENUS:CANCELAR', descripcion: 'Cancelar menús publicados', modulo: 'MENUS' },
+    { codigo: 'REPORTES:EXPORTAR', descripcion: 'Exportar reportes', modulo: 'REPORTES' },
+    { codigo: 'FACTURAS:ANULAR', descripcion: 'Anular facturas emitidas', modulo: 'VENTAS' },
+    { codigo: 'FACTURAS:SIFEN', descripcion: 'Reenviar facturas a SIFEN', modulo: 'VENTAS' },
+    { codigo: 'PAGOS:CONFIRMAR', descripcion: 'Confirmar pagos pendientes', modulo: 'VENTAS' },
+    { codigo: 'PAGOS:RECHAZAR', descripcion: 'Rechazar pagos', modulo: 'VENTAS' },
+    { codigo: 'NOTIFICACIONES:ENVIAR', descripcion: 'Enviar notificaciones masivas', modulo: 'CLIENTES' },
+  ];
+
+  for (const pg of permisosGranulares) {
+    const p = await prisma.permiso.upsert({
+      where: { codigo: pg.codigo },
+      update: {},
+      create: pg,
+    });
+    permisosCreados[pg.codigo] = p.id;
+  }
+
   console.log('Permisos creados:', Object.keys(permisosCreados).length);
 
   // Asignar todos los permisos a SUPERADMIN y ADMINISTRADOR
