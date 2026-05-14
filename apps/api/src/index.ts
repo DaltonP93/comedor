@@ -42,6 +42,7 @@ import notificacionesRouter from './routes/notificaciones';
 import pagosRouter from './routes/pagos';
 import facturasRouter from './routes/facturas';
 import cajaRouter from './routes/caja';
+import portalRouter from './routes/portal';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -138,6 +139,7 @@ app.use('/api/notificaciones', notificacionesRouter);
 app.use('/api/pagos', pagosRouter);
 app.use('/api/facturas', facturasRouter);
 app.use('/api/caja', cajaRouter);
+app.use('/api/portal', portalRouter);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
