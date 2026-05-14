@@ -548,7 +548,7 @@ router.get('/desperdicio', requirePermiso('REPORTES:VER'), async (req: Request, 
     // Entradas del período (COMPRA)
     const entradas = await prisma.stockMovimiento.groupBy({
       by: ['producto_id'],
-      where: { ...movWhere, tipo_movimiento: 'ENTRADA', referencia_tipo: { in: ['COMPRA', null] } },
+      where: { ...movWhere, tipo_movimiento: 'ENTRADA' },
       _sum: { cantidad: true },
     });
 
@@ -573,14 +573,14 @@ router.get('/desperdicio', requirePermiso('REPORTES:VER'), async (req: Request, 
     const stockRealMap = new Map<number | null, number>(stockReal.map((s) => [s.producto_id, Number(s._sum.cantidad ?? 0)]));
 
     // Construir mapa de entradas y salidas del período
-    const entradasMap = new Map<number | null, number>(entradas.map((e) => [e.producto_id, Number(e._sum.cantidad ?? 0)]));
-    const salidasMap = new Map<number | null, number>(salidas.map((s) => [s.producto_id, Number(s._sum.cantidad ?? 0)]));
+    const entradasMap = new Map<number | null, number>(entradas.map((e) => [e.producto_id, Number(e._sum?.cantidad ?? 0)]));
+    const salidasMap = new Map<number | null, number>(salidas.map((s) => [s.producto_id, Number(s._sum?.cantidad ?? 0)]));
 
     // Unión de todos los productos presentes
     const todosProductoIds = new Set([...entradasMap.keys(), ...salidasMap.keys()]);
 
     const productos = await prisma.producto.findMany({
-      where: { id: { in: Array.from(todosProductoIds) }, activo: true },
+      where: { id: { in: Array.from(todosProductoIds).filter((id): id is number => id !== null) }, activo: true },
       select: { id: true, nombre: true, costo_promedio: true, unidad_medida: true },
     });
 

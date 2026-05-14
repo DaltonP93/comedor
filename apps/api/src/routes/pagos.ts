@@ -94,11 +94,11 @@ router.post('/webhook/bancard', async (req: Request, res: Response): Promise<voi
           event_id: shopProcessId ?? `BANCARD_${Date.now()}`,
         },
       },
-      update: { payload, estado: 'RECIBIDO' },
+      update: { payload: JSON.parse(JSON.stringify(payload)), estado: 'RECIBIDO' },
       create: {
         proveedor: 'BANCARD',
         event_id: shopProcessId ?? `BANCARD_${Date.now()}`,
-        payload,
+        payload: JSON.parse(JSON.stringify(payload)),
         estado: 'RECIBIDO',
       },
     });
@@ -121,7 +121,7 @@ router.post('/webhook/bancard', async (req: Request, res: Response): Promise<voi
             where: { id: intento.id },
             data: {
               estado: 'CONFIRMADO',
-              response_payload: resultado.response_payload as Record<string, unknown>,
+              response_payload: JSON.parse(JSON.stringify(resultado.response_payload ?? {})),
             },
           });
 
@@ -214,11 +214,11 @@ router.post('/webhook/pagopar', async (req: Request, res: Response): Promise<voi
           event_id: idTransaccion ?? `PAGOPAR_${Date.now()}`,
         },
       },
-      update: { payload, estado: 'RECIBIDO' },
+      update: { payload: JSON.parse(JSON.stringify(payload)), estado: 'RECIBIDO' },
       create: {
         proveedor: 'PAGOPAR',
         event_id: idTransaccion ?? `PAGOPAR_${Date.now()}`,
-        payload,
+        payload: JSON.parse(JSON.stringify(payload)),
         estado: 'RECIBIDO',
       },
     });
@@ -238,7 +238,7 @@ router.post('/webhook/pagopar', async (req: Request, res: Response): Promise<voi
             where: { id: intento.id },
             data: {
               estado: 'CONFIRMADO',
-              response_payload: resultado.response_payload as Record<string, unknown>,
+              response_payload: JSON.parse(JSON.stringify(resultado.response_payload ?? {})),
             },
           });
 

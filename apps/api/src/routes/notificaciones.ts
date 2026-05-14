@@ -150,7 +150,7 @@ router.post('/envio-masivo', requirePermiso('CLIENTES:EDITAR'), async (req: Requ
       },
       include: {
         cliente: {
-          select: { id: true, nombre: true, canal_preferido: true, saldo_vencido: true },
+          select: { id: true, nombre: true, canal_preferido: true },
         },
       },
     });

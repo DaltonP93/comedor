@@ -624,7 +624,7 @@ router.get('/facturas', authenticateCliente, async (req: PortalRequest, res: Res
   try {
     const facturas = await prisma.factura.findMany({
       where: { venta: { cliente_id: req.cliente!.clienteId } },
-      orderBy: { fecha_emision: 'desc' },
+      orderBy: { fecha: 'desc' },
       take: 80,
       include: { venta: { select: { id: true, total: true, creado_en: true } } },
     });

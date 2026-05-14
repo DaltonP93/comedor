@@ -317,7 +317,7 @@ router.post(
             tipo_evento: 'ENVIO_SIFEN',
             estado_anterior: 'PENDIENTE',
             estado_nuevo: sifenResult.estado,
-            respuesta: { cdc: sifenResult.cdc, mensaje: sifenResult.mensaje } as Record<string, unknown>,
+            respuesta: JSON.parse(JSON.stringify({ cdc: sifenResult.cdc, mensaje: sifenResult.mensaje })),
             mensaje: sifenResult.mensaje,
           },
         });
@@ -426,7 +426,7 @@ router.get(
       subtotal: bigint;
     }) => ({
       descripcion: item.descripcion,
-      cantidad: item.cantidad,
+      cantidad: Number(item.cantidad),
       precio_unitario: item.precio_unitario,
       iva_porcentaje: Number(item.iva_porcentaje),
       subtotal: item.subtotal,
@@ -546,7 +546,7 @@ router.post(
             tipo_evento: 'ANULACION',
             estado_anterior: documentoFiscal.estado,
             estado_nuevo: 'ANULADA',
-            payload: { motivo } as Record<string, unknown>,
+            payload: JSON.parse(JSON.stringify({ motivo })),
             mensaje: motivo,
           },
         });
@@ -637,7 +637,7 @@ router.post(
         tipo_evento: 'REENVIO_SIFEN',
         estado_anterior: documentoFiscal.estado_sifen ?? 'PENDIENTE',
         estado_nuevo: sifenResult.estado,
-        respuesta: { cdc: sifenResult.cdc, mensaje: sifenResult.mensaje } as Record<string, unknown>,
+        respuesta: JSON.parse(JSON.stringify({ cdc: sifenResult.cdc, mensaje: sifenResult.mensaje })),
         mensaje: sifenResult.mensaje,
       },
     });
@@ -697,7 +697,6 @@ router.post(
     // Buscar documento fiscal original
     const original = await prisma.documentoFiscal.findFirst({
       where: { venta_id: Number(id) },
-      include: { venta: true },
     });
 
     if (!original) throw new AppError(404, 'Factura no encontrada', 'FACTURA_NO_ENCONTRADA');
@@ -747,7 +746,7 @@ router.post(
           documento_fiscal_id: notaCredito.id,
           tipo_evento: 'EMISION_NOTA_CREDITO',
           estado_nuevo: 'EMITIDA_LOCAL',
-          payload: { motivo, original_id: original.id } as Record<string, unknown>,
+          payload: JSON.parse(JSON.stringify({ motivo, original_id: original.id })),
         },
       });
 
@@ -757,7 +756,7 @@ router.post(
           tipo_evento: 'ANULACION',
           estado_anterior: original.estado,
           estado_nuevo: 'ANULADA',
-          payload: { motivo, nota_credito_id: notaCredito.id } as Record<string, unknown>,
+          payload: JSON.parse(JSON.stringify({ motivo, nota_credito_id: notaCredito.id })),
         },
       });
 
