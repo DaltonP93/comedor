@@ -59,20 +59,8 @@ export function StockActualPage() {
       if (filtroSucursal) params.sucursal_id = filtroSucursal;
       if (soloBajoStock) params.bajo_stock = true;
 
-      let data: StockActualRow[] = [];
-      try {
-        const res = await stockApi.actual(params);
-        data = res.data.data as StockActualRow[];
-      } catch (err: unknown) {
-        const axiosErr = err as { response?: { status?: number } };
-        if (axiosErr?.response?.status === 404) {
-          // Fallback: usar /stock con resumen
-          const fallback = await stockApi.listar(params);
-          data = fallback.data.data as StockActualRow[];
-        } else {
-          throw err;
-        }
-      }
+      const res = await stockApi.listar(params);
+      const data: StockActualRow[] = res.data.data as StockActualRow[];
       setRows(data);
     } catch (err) {
       setError(getErrorMessage(err));

@@ -88,8 +88,8 @@ export function MermasPage() {
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Nueva Merma</h2>
-        {error && <Alert type="error" message={error} className="mb-4" />}
-        {success && <Alert type="success" message={success} className="mb-4" />}
+        {error && <Alert type="error">{error}</Alert>}
+        {success && <Alert type="success">{success}</Alert>}
         <form onSubmit={registrar} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Producto *</label>
@@ -135,17 +135,15 @@ export function MermasPage() {
         ) : mermas.length === 0 ? (
           <p className="text-gray-400 text-center py-8">Sin mermas registradas.</p>
         ) : (
-          <Table
-            headers={['Producto', 'Cantidad', 'Descripción', 'Fecha', 'Usuario']}
-            data={mermas}
-            renderRow={m => [
-              m.producto?.nombre || '-',
-              Math.abs(m.cantidad).toString(),
-              m.descripcion || '-',
-              formatFechaHora(m.creado_en),
-              m.usuario?.nombre || '-',
+          <Table<Merma>
+            columns={[
+              { key: 'producto', header: 'Producto', render: (m: Merma) => m.producto?.nombre || '-' },
+              { key: 'cantidad', header: 'Cantidad', render: (m: Merma) => Math.abs(m.cantidad).toString() },
+              { key: 'descripcion', header: 'Descripción', render: (m: Merma) => m.descripcion || '-' },
+              { key: 'creado_en', header: 'Fecha', render: (m: Merma) => formatFechaHora(m.creado_en) },
+              { key: 'usuario', header: 'Usuario', render: (m: Merma) => m.usuario?.nombre || '-' },
             ]}
-            keyExtractor={m => m.id.toString()}
+            data={mermas}
           />
         )}
       </div>

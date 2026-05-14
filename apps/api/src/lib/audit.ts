@@ -19,10 +19,10 @@ export async function registrarAuditoria(params: AuditParams): Promise<void> {
         accion: params.accion,
         registro_id: params.registroId ? String(params.registroId) : undefined,
         valor_anterior: params.valorAnterior !== undefined
-          ? (params.valorAnterior as Record<string, unknown>)
+          ? JSON.parse(JSON.stringify(params.valorAnterior))
           : undefined,
         valor_nuevo: params.valorNuevo !== undefined
-          ? (params.valorNuevo as Record<string, unknown>)
+          ? JSON.parse(JSON.stringify(params.valorNuevo))
           : undefined,
         ip: params.ip,
       },

@@ -40,7 +40,7 @@ export function LibretaCobroPage() {
     setSaving(true);
     setError('');
     try {
-      await libretasApi.pagar(parseInt(id!), {
+      await libretasApi.pago(parseInt(id!), {
         monto: Math.round(montoNum),
         forma_pago: formaPago,
         referencia: referencia || undefined,
@@ -60,7 +60,7 @@ export function LibretaCobroPage() {
   };
 
   if (loading) return <PageLoader />;
-  if (!libreta) return <Alert type="error" message={error || 'Libreta no encontrada.'} />;
+  if (!libreta) return <Alert type="error">{error || 'Libreta no encontrada.'}</Alert>;
 
   const saldo = Number(libreta.saldo_actual || 0);
   const limite = Number(libreta.limite_credito || 0);
@@ -75,8 +75,8 @@ export function LibretaCobroPage() {
         <h1 className="text-2xl font-bold text-gray-900">Cobro de Libreta</h1>
       </div>
 
-      {error && <Alert type="error" message={error} />}
-      {success && <Alert type="success" message={success} />}
+      {error && <Alert type="error">{error}</Alert>}
+      {success && <Alert type="success">{success}</Alert>}
 
       {/* Info de la libreta */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -85,7 +85,7 @@ export function LibretaCobroPage() {
             <p className="font-semibold text-gray-900 text-lg">{String(cliente?.nombre || 'Cliente')}</p>
             <p className="text-sm text-gray-500">Libreta #{id}</p>
           </div>
-          <Badge color={estado === 'ACTIVA' ? 'green' : estado === 'BLOQUEADA' ? 'red' : 'yellow'}>
+          <Badge variant={estado === 'ACTIVA' ? 'success' : estado === 'BLOQUEADA' ? 'danger' : 'warning'}>
             {estado}
           </Badge>
         </div>

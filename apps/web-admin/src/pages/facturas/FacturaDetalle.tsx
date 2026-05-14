@@ -10,13 +10,13 @@ import { Modal } from '../../components/UI/Modal';
 import { Input } from '../../components/UI/Input';
 import { formatGs, formatFechaHora, getErrorMessage } from '../../lib/utils';
 
-const ESTADO_COLOR: Record<string, 'green' | 'yellow' | 'red' | 'blue' | 'gray'> = {
-  EMITIDA_LOCAL: 'blue',
-  PENDIENTE_SIFEN: 'yellow',
-  APROBADA_SIFEN: 'green',
-  RECHAZADA_SIFEN: 'red',
-  ANULADA: 'gray',
-  BORRADOR: 'gray',
+const ESTADO_COLOR: Record<string, 'info' | 'warning' | 'success' | 'danger' | 'default'> = {
+  EMITIDA_LOCAL: 'info',
+  PENDIENTE_SIFEN: 'warning',
+  APROBADA_SIFEN: 'success',
+  RECHAZADA_SIFEN: 'danger',
+  ANULADA: 'default',
+  BORRADOR: 'default',
 };
 
 export function FacturaDetalle() {
@@ -97,7 +97,7 @@ export function FacturaDetalle() {
   };
 
   if (loading) return <PageLoader />;
-  if (!factura) return <Alert type="error" message={error || 'Factura no encontrada.'} />;
+  if (!factura) return <Alert type="error">{error || 'Factura no encontrada.'}</Alert>;
 
   const doc = (factura.documento_fiscal || factura) as Record<string, unknown>;
   const eventos = (doc.eventos || factura.eventos || []) as Array<Record<string, unknown>>;
@@ -114,13 +114,13 @@ export function FacturaDetalle() {
           </h1>
         </div>
         <div className="flex gap-2">
-          <Badge color={ESTADO_COLOR[estado] || 'gray'}>{estado}</Badge>
-          {estadoSifen && <Badge color={ESTADO_COLOR[estadoSifen] || 'gray'}>SIFEN: {estadoSifen}</Badge>}
+          <Badge variant={ESTADO_COLOR[estado] || 'default'}>{estado}</Badge>
+          {estadoSifen && <Badge variant={ESTADO_COLOR[estadoSifen] || 'default'}>SIFEN: {estadoSifen}</Badge>}
         </div>
       </div>
 
-      {error && <Alert type="error" message={error} />}
-      {success && <Alert type="success" message={success} />}
+      {error && <Alert type="error">{error}</Alert>}
+      {success && <Alert type="success">{success}</Alert>}
 
       {/* Acciones */}
       <div className="flex flex-wrap gap-2">
@@ -198,7 +198,7 @@ export function FacturaDetalle() {
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-gray-900">{String(ev.tipo_evento)}</p>
-                  {ev.estado_anterior && <p className="text-xs text-gray-500">{String(ev.estado_anterior)} → {String(ev.estado_nuevo)}</p>}
+                  {ev.estado_anterior != null && <p className="text-xs text-gray-500">{String(ev.estado_anterior)} → {String(ev.estado_nuevo)}</p>}
                   <p className="text-xs text-gray-400">{formatFechaHora(String(ev.creado_en))}</p>
                 </div>
               </li>
@@ -210,7 +210,7 @@ export function FacturaDetalle() {
       {/* Modal Anular */}
       <Modal isOpen={showAnular} onClose={() => setShowAnular(false)} title="Anular Factura">
         <div className="space-y-4">
-          <Alert type="warning" message="Esta acción anulará el documento fiscal. Si está aprobado en SIFEN, se enviará cancelación." />
+          <Alert type="warning">Esta acción anulará el documento fiscal. Si está aprobado en SIFEN, se enviará cancelación.</Alert>
           <Input label="Motivo de anulación *" value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Descripción del motivo..." />
           <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setShowAnular(false)}>Cancelar</Button>

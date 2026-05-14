@@ -675,31 +675,20 @@ router.get('/notificaciones', authenticateCliente, async (req: PortalRequest, re
 
 router.get('/notificaciones/preferencias', authenticateCliente, async (req: PortalRequest, res: Response): Promise<void> => {
   try {
-    const consentimiento = await prisma.clienteConsentimiento.findFirst({
-      where: { cliente_id: req.cliente!.clienteId },
+    const clienteId = req.cliente!.clienteId;
+    const consentimientos = await prisma.clienteConsentimiento.findMany({
+      where: { cliente_id: clienteId },
     });
 
-    const defaults = {
-      canal_whatsapp: true,
-      canal_email: true,
-      canal_sms: false,
-      tipo_menu_publicado: true,
-      tipo_reserva_confirmada: true,
-      tipo_libreta_vencida: true,
-      tipo_pago_confirmado: true,
-    };
-
-    if (!consentimiento) {
-      res.json({ success: true, data: defaults });
-      return;
-    }
+    const getAcepta = (canal: string) =>
+      consentimientos.find((c) => c.canal === canal)?.aceptado ?? true;
 
     res.json({
       success: true,
       data: {
-        canal_whatsapp: consentimiento.acepta_whatsapp,
-        canal_email: consentimiento.acepta_email,
-        canal_sms: consentimiento.acepta_sms,
+        canal_whatsapp: getAcepta('whatsapp'),
+        canal_email: getAcepta('email'),
+        canal_sms: consentimientos.find((c) => c.canal === 'sms')?.aceptado ?? false,
         tipo_menu_publicado: true,
         tipo_reserva_confirmada: true,
         tipo_libreta_vencida: true,
@@ -716,24 +705,16 @@ router.put('/notificaciones/preferencias', authenticateCliente, async (req: Port
   try {
     const clienteId = req.cliente!.clienteId;
     const { canal_whatsapp, canal_email, canal_sms } = req.body;
+    const ip = req.ip || '0.0.0.0';
 
-    await prisma.clienteConsentimiento.upsert({
-      where: { cliente_id: clienteId },
-      create: {
-        cliente_id: clienteId,
-        acepta_whatsapp: canal_whatsapp ?? true,
-        acepta_email: canal_email ?? true,
-        acepta_sms: canal_sms ?? false,
-        fecha_consentimiento: new Date(),
-        ip_consentimiento: req.ip || '0.0.0.0',
-        version_politica: '1.0',
-      },
-      update: {
-        acepta_whatsapp: canal_whatsapp ?? true,
-        acepta_email: canal_email ?? true,
-        acepta_sms: canal_sms ?? false,
-        fecha_consentimiento: new Date(),
-      },
+    // Borrar y recrear (schema no tiene unique en cliente_id, usa múltiples filas por canal)
+    await prisma.clienteConsentimiento.deleteMany({ where: { cliente_id: clienteId } });
+    await prisma.clienteConsentimiento.createMany({
+      data: [
+        { cliente_id: clienteId, tipo: 'MARKETING', canal: 'whatsapp', aceptado: canal_whatsapp ?? true, ip },
+        { cliente_id: clienteId, tipo: 'MARKETING', canal: 'email', aceptado: canal_email ?? true, ip },
+        { cliente_id: clienteId, tipo: 'MARKETING', canal: 'sms', aceptado: canal_sms ?? false, ip },
+      ],
     });
 
     res.json({ success: true, message: 'Preferencias guardadas' });

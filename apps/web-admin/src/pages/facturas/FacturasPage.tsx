@@ -87,7 +87,7 @@ export default function FacturasPage() {
     if (!confirm('¿Anular esta factura? Esta acción no se puede deshacer.')) return;
     setAnulando(id);
     try {
-      await facturasApi.anular(id);
+      await facturasApi.anular(id, 'Anulación manual');
       setSuccess('Factura anulada');
       await cargar();
     } catch (err) {
@@ -114,7 +114,7 @@ export default function FacturasPage() {
   const handleVerPdf = async (id: number, numero: string) => {
     setDescargando(id);
     try {
-      const res: AxiosResponse<Blob> = await apiClient.get(`/facturas/${id}/pdf`, { responseType: 'blob' });
+      const res = await apiClient.get<Blob>(`/facturas/${id}/pdf`, { responseType: 'blob' });
       const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       const a = document.createElement('a');
       a.href = url;

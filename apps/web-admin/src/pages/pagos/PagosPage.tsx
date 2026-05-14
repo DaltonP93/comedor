@@ -20,13 +20,13 @@ interface Pago {
   cliente?: { nombre: string } | null;
 }
 
-const ESTADO_COLOR: Record<string, 'green' | 'yellow' | 'red' | 'gray' | 'blue'> = {
-  CONFIRMADO: 'green',
-  PENDIENTE: 'yellow',
-  RECHAZADO: 'red',
-  ANULADO: 'gray',
-  EXPIRADO: 'gray',
-  CREADO: 'blue',
+const ESTADO_COLOR: Record<string, 'success' | 'warning' | 'danger' | 'default' | 'info'> = {
+  CONFIRMADO: 'success',
+  PENDIENTE: 'warning',
+  RECHAZADO: 'danger',
+  ANULADO: 'default',
+  EXPIRADO: 'default',
+  CREADO: 'info',
 };
 
 const FORMAS_PAGO = ['', 'EFECTIVO', 'POS', 'QR', 'TRANSFERENCIA', 'LIBRETA', 'BANCARD', 'PAGOPAR'];
@@ -106,8 +106,8 @@ export function PagosPage() {
         <h1 className="text-2xl font-bold text-gray-900">Pagos</h1>
       </div>
 
-      {error && <Alert type="error" message={error} />}
-      {success && <Alert type="success" message={success} />}
+      {error && <Alert type="error">{error}</Alert>}
+      {success && <Alert type="success">{success}</Alert>}
 
       {/* Filtros */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -164,7 +164,7 @@ export function PagosPage() {
                     <td className="px-4 py-3 text-sm">{p.forma_pago}</td>
                     <td className="px-4 py-3 text-sm font-medium">{formatGs(p.monto)}</td>
                     <td className="px-4 py-3">
-                      <Badge color={ESTADO_COLOR[p.estado] || 'gray'}>{p.estado}</Badge>
+                      <Badge variant={ESTADO_COLOR[p.estado] || 'default'}>{p.estado}</Badge>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">{formatFechaHora(p.creado_en)}</td>
                     <td className="px-4 py-3 text-sm">
@@ -194,7 +194,7 @@ export function PagosPage() {
         )}
       </div>
 
-      <Pagination page={page} totalPages={meta.totalPages} onPageChange={setPage} />
+      <Pagination page={page} totalPages={meta.totalPages} total={meta.total} limit={20} onPageChange={(p: number) => setPage(p)} />
 
       <Modal isOpen={showMotivo} onClose={() => setShowMotivo(false)} title="Rechazar Pago">
         <div className="space-y-4">
