@@ -3,6 +3,7 @@ import { body } from 'express-validator';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
+import { pick } from '../lib/pick';
 
 const router = Router();
 router.use(authenticate);
@@ -49,7 +50,7 @@ router.post(
   [body('nombre').notEmpty().withMessage('Nombre requerido'), handleValidation],
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const proveedor = await prisma.proveedor.create({ data: req.body });
+      const proveedor = await prisma.proveedor.create({ data: pick(req.body, ['nombre', 'ruc', 'telefono', 'email', 'direccion', 'activo']) });
       res.status(201).json({ success: true, message: 'Proveedor creado', data: proveedor });
     } catch (error) {
       console.error(error);
@@ -61,7 +62,7 @@ router.post(
 router.put('/:id', requirePermiso('PROVEEDORES:EDITAR'), async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const proveedor = await prisma.proveedor.update({ where: { id }, data: req.body });
+    const proveedor = await prisma.proveedor.update({ where: { id }, data: pick(req.body, ['nombre', 'ruc', 'telefono', 'email', 'direccion', 'activo']) });
     res.json({ success: true, message: 'Proveedor actualizado', data: proveedor });
   } catch (error) {
     console.error(error);

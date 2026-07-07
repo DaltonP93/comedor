@@ -3,6 +3,7 @@ import { body } from 'express-validator';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
+import { pick } from '../lib/pick';
 
 const router = Router();
 router.use(authenticate);
@@ -158,7 +159,7 @@ router.put('/:id', requirePermiso('COMPRAS:EDITAR'), async (req: Request, res: R
       res.status(400).json({ success: false, message: 'No se puede editar una compra anulada' });
       return;
     }
-    const updated = await prisma.compra.update({ where: { id }, data: req.body });
+    const updated = await prisma.compra.update({ where: { id }, data: pick(req.body, ['numero_factura','fecha','estado']) });
     res.json({ success: true, message: 'Compra actualizada', data: updated });
   } catch (error) {
     console.error(error);

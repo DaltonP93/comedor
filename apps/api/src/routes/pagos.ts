@@ -69,40 +69,50 @@ async function verificarCompletitudVenta(ventaId: number): Promise<void> {
 // Deben registrarse ANTES de router.use(authenticate)
 // ---------------------------------------------------------------------------
 
+/**
+ * Reclama de forma atómica el procesamiento de un evento de webhook usando la
+ * restricción única (proveedor+event_id). Evita el race TOCTOU: solo el primer
+ * request crea la fila (estado EN_PROCESO); los duplicados concurrentes reciben
+ * P2002 y se descartan. Un evento previo en ERROR puede reprocesarse.
+ * Devuelve el evento reclamado, o null si ya fue/está siendo procesado.
+ */
+async function reclamarEventoWebhook(
+  proveedor: string,
+  eventId: string,
+  payload: unknown
+): Promise<{ id: number } | null> {
+  const payloadJson = JSON.parse(JSON.stringify(payload));
+  try {
+    return await prisma.webhookEvento.create({
+      data: { proveedor, event_id: eventId, payload: payloadJson, estado: 'EN_PROCESO' },
+    });
+  } catch (e) {
+    if ((e as { code?: string }).code !== 'P2002') throw e;
+    const existente = await prisma.webhookEvento.findUnique({
+      where: { proveedor_event_id: { proveedor, event_id: eventId } },
+    });
+    if (!existente || existente.estado !== 'ERROR') return null; // ya procesado o en proceso
+    const claim = await prisma.webhookEvento.updateMany({
+      where: { id: existente.id, estado: 'ERROR' },
+      data: { estado: 'EN_PROCESO', payload: payloadJson },
+    });
+    return claim.count > 0 ? { id: existente.id } : null;
+  }
+}
+
 // POST /pagos/webhook/bancard
 router.post('/webhook/bancard', async (req: Request, res: Response): Promise<void> => {
   const payload = req.body as Record<string, unknown>;
   const shopProcessId = (payload.operation as Record<string, unknown> | undefined)?.shop_process_id?.toString() ?? null;
 
   try {
-    // Idempotencia: verificar si ya fue procesado
-    if (shopProcessId) {
-      const existente = await prisma.webhookEvento.findUnique({
-        where: { proveedor_event_id: { proveedor: 'BANCARD', event_id: shopProcessId } },
-      });
-      if (existente && existente.estado === 'PROCESADO') {
-        logger.info('Webhook Bancard ya procesado', { shopProcessId });
-        res.json({ success: true, message: 'ya procesado' });
-        return;
-      }
+    // Claim atómico (idempotencia sin TOCTOU)
+    const evento = await reclamarEventoWebhook('BANCARD', shopProcessId ?? `BANCARD_${Date.now()}`, payload);
+    if (!evento) {
+      logger.info('Webhook Bancard duplicado o ya procesado', { shopProcessId });
+      res.json({ success: true, message: 'ya recibido' });
+      return;
     }
-
-    // Guardar evento (upsert para tolerar reintentos)
-    const evento = await prisma.webhookEvento.upsert({
-      where: {
-        proveedor_event_id: {
-          proveedor: 'BANCARD',
-          event_id: shopProcessId ?? `BANCARD_${Date.now()}`,
-        },
-      },
-      update: { payload: JSON.parse(JSON.stringify(payload)), estado: 'RECIBIDO' },
-      create: {
-        proveedor: 'BANCARD',
-        event_id: shopProcessId ?? `BANCARD_${Date.now()}`,
-        payload: JSON.parse(JSON.stringify(payload)),
-        estado: 'RECIBIDO',
-      },
-    });
 
     // Procesar mediante el proveedor
     const resultado = await BancardProvider.procesarWebhook(payload);
@@ -209,33 +219,13 @@ router.post('/webhook/pagopar', async (req: Request, res: Response): Promise<voi
   const idTransaccion = (payload.id_transaccion ?? payload.referencia)?.toString() ?? null;
 
   try {
-    // Idempotencia
-    if (idTransaccion) {
-      const existente = await prisma.webhookEvento.findUnique({
-        where: { proveedor_event_id: { proveedor: 'PAGOPAR', event_id: idTransaccion } },
-      });
-      if (existente && existente.estado === 'PROCESADO') {
-        logger.info('Webhook Pagopar ya procesado', { idTransaccion });
-        res.json({ success: true, message: 'ya procesado' });
-        return;
-      }
+    // Claim atómico (idempotencia sin TOCTOU)
+    const evento = await reclamarEventoWebhook('PAGOPAR', idTransaccion ?? `PAGOPAR_${Date.now()}`, payload);
+    if (!evento) {
+      logger.info('Webhook Pagopar duplicado o ya procesado', { idTransaccion });
+      res.json({ success: true, message: 'ya recibido' });
+      return;
     }
-
-    const evento = await prisma.webhookEvento.upsert({
-      where: {
-        proveedor_event_id: {
-          proveedor: 'PAGOPAR',
-          event_id: idTransaccion ?? `PAGOPAR_${Date.now()}`,
-        },
-      },
-      update: { payload: JSON.parse(JSON.stringify(payload)), estado: 'RECIBIDO' },
-      create: {
-        proveedor: 'PAGOPAR',
-        event_id: idTransaccion ?? `PAGOPAR_${Date.now()}`,
-        payload: JSON.parse(JSON.stringify(payload)),
-        estado: 'RECIBIDO',
-      },
-    });
 
     const resultado = await PagoparProvider.procesarWebhook(payload);
     logger.info('Webhook Pagopar procesado', { exitoso: resultado.exitoso, referencia: resultado.referencia_externa });

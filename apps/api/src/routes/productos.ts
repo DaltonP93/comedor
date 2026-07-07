@@ -8,6 +8,13 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
+// Solo imágenes; la extensión se deriva del MIME validado, no de originalname.
+const MIME_EXT: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+};
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(process.cwd(), 'uploads', 'productos');
@@ -15,11 +22,22 @@ const storage = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
+    const ext = MIME_EXT[file.mimetype] ?? '.bin';
     cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
   },
 });
-const upload = multer({ storage });
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
+  fileFilter: (req, file, cb) => {
+    if (MIME_EXT[file.mimetype]) {
+      cb(null, true);
+    } else {
+      cb(new Error('Tipo de archivo no permitido. Solo PNG, JPEG o WebP.'));
+    }
+  },
+});
 
 const router = Router();
 router.use(authenticate);
@@ -114,11 +132,22 @@ router.post(
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
+      // Allowlist. costo_promedio NO es editable por API (lo maneja el flujo de compras).
+      const b = req.body;
       const data = {
-        ...req.body,
-        precio_venta: BigInt(req.body.precio_venta ?? 0),
-        precio_por_kg: req.body.precio_por_kg ? BigInt(req.body.precio_por_kg) : undefined,
-        costo_promedio: BigInt(req.body.costo_promedio ?? 0),
+        codigo: b.codigo ?? undefined,
+        codigo_barra: b.codigo_barra ?? undefined,
+        nombre: b.nombre,
+        descripcion: b.descripcion ?? undefined,
+        imagen_url: b.imagen_url ?? undefined,
+        categoria_id: b.categoria_id ?? undefined,
+        unidad_medida: b.unidad_medida ?? undefined,
+        precio_venta: BigInt(b.precio_venta ?? 0),
+        precio_por_kg: b.precio_por_kg ? BigInt(b.precio_por_kg) : undefined,
+        iva_porcentaje: b.iva_porcentaje !== undefined ? Number(b.iva_porcentaje) : undefined,
+        controla_stock: b.controla_stock ?? undefined,
+        venta_por_kilo: b.venta_por_kilo ?? undefined,
+        activo: b.activo ?? undefined,
       };
 
       const producto = await prisma.producto.create({ data, include: { categoria: true } });
@@ -143,11 +172,22 @@ router.post(
 router.put('/:id', requirePermiso('PRODUCTOS:EDITAR'), async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
+    // Allowlist. costo_promedio NO es editable por API (lo maneja el flujo de compras).
+    const b = req.body;
     const data = {
-      ...req.body,
-      precio_venta: req.body.precio_venta !== undefined ? BigInt(req.body.precio_venta) : undefined,
-      precio_por_kg: req.body.precio_por_kg ? BigInt(req.body.precio_por_kg) : undefined,
-      costo_promedio: req.body.costo_promedio !== undefined ? BigInt(req.body.costo_promedio) : undefined,
+      codigo: b.codigo ?? undefined,
+      codigo_barra: b.codigo_barra ?? undefined,
+      nombre: b.nombre ?? undefined,
+      descripcion: b.descripcion ?? undefined,
+      imagen_url: b.imagen_url ?? undefined,
+      categoria_id: b.categoria_id ?? undefined,
+      unidad_medida: b.unidad_medida ?? undefined,
+      precio_venta: b.precio_venta !== undefined ? BigInt(b.precio_venta) : undefined,
+      precio_por_kg: b.precio_por_kg ? BigInt(b.precio_por_kg) : undefined,
+      iva_porcentaje: b.iva_porcentaje !== undefined ? Number(b.iva_porcentaje) : undefined,
+      controla_stock: b.controla_stock ?? undefined,
+      venta_por_kilo: b.venta_por_kilo ?? undefined,
+      activo: b.activo ?? undefined,
     };
 
     const producto = await prisma.producto.update({ where: { id }, data, include: { categoria: true } });

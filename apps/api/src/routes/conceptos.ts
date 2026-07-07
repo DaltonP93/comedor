@@ -3,6 +3,7 @@ import { body } from 'express-validator';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
+import { pick } from '../lib/pick';
 
 const router = Router();
 router.use(authenticate);
@@ -49,7 +50,7 @@ router.post(
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const concepto = await prisma.conceptoVenta.create({ data: req.body });
+      const concepto = await prisma.conceptoVenta.create({ data: pick(req.body, ['nombre', 'codigo', 'tipo', 'aplica_iva', 'tasa_iva', 'se_factura', 'afecta_stock', 'permite_descuento', 'permite_libreta', 'permite_reserva', 'activo']) });
       res.status(201).json({ success: true, message: 'Concepto creado', data: concepto });
     } catch (error) {
       console.error(error);
@@ -61,7 +62,7 @@ router.post(
 router.put('/:id', requirePermiso('CONCEPTOS:EDITAR'), async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const concepto = await prisma.conceptoVenta.update({ where: { id }, data: req.body });
+    const concepto = await prisma.conceptoVenta.update({ where: { id }, data: pick(req.body, ['nombre', 'codigo', 'tipo', 'aplica_iva', 'tasa_iva', 'se_factura', 'afecta_stock', 'permite_descuento', 'permite_libreta', 'permite_reserva', 'activo']) });
     res.json({ success: true, message: 'Concepto actualizado', data: concepto });
   } catch (error) {
     console.error(error);

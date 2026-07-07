@@ -3,6 +3,7 @@ import { body } from 'express-validator';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
+import { pick } from '../lib/pick';
 
 const router = Router();
 router.use(authenticate);
@@ -53,7 +54,7 @@ router.post(
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const caja = await prisma.caja.create({ data: req.body, include: { sucursal: true } });
+      const caja = await prisma.caja.create({ data: pick(req.body, ['nombre', 'sucursal_id', 'estado', 'activo']), include: { sucursal: true } });
       res.status(201).json({ success: true, message: 'Caja creada', data: caja });
     } catch (error) {
       console.error(error);
@@ -65,7 +66,7 @@ router.post(
 router.put('/:id', requirePermiso('CAJAS:EDITAR'), async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const caja = await prisma.caja.update({ where: { id }, data: req.body, include: { sucursal: true } });
+    const caja = await prisma.caja.update({ where: { id }, data: pick(req.body, ['nombre', 'sucursal_id', 'estado', 'activo']), include: { sucursal: true } });
     res.json({ success: true, message: 'Caja actualizada', data: caja });
   } catch (error) {
     console.error(error);
