@@ -11,11 +11,13 @@ import { PagoparProvider } from '../lib/payment/PagoparProvider';
 import type { PaymentProvider } from '../lib/payment/PaymentProvider';
 import { clientePublicSelect } from '../lib/selects';
 import { toJson } from '../lib/json';
+import { PaymentService } from '../services/PaymentService';
 
 const router = Router();
+const paymentService = new PaymentService(prisma);
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Helpers (delegan la lógica de dominio a PaymentService)
 // ---------------------------------------------------------------------------
 
 function getProveedor(nombre: string): PaymentProvider {
@@ -29,295 +31,41 @@ function getProveedor(nombre: string): PaymentProvider {
   }
 }
 
-/**
- * Calcula el monto pendiente de una venta:
- * total de la venta menos la suma de pagos CONFIRMADOS.
- */
-async function calcularMontoPendiente(ventaId: number): Promise<{ venta: { id: number; total: bigint; estado: string; cliente_id: number | null }; pendiente: bigint }> {
-  const venta = await prisma.venta.findUnique({
-    where: { id: ventaId },
-    select: { id: true, total: true, estado: true, cliente_id: true },
-  });
-  if (!venta) throw new AppError(404, 'Venta no encontrada');
-
-  const pagosConfirmados = await prisma.pago.aggregate({
-    where: { venta_id: ventaId, estado: 'CONFIRMADO' },
-    _sum: { monto: true },
-  });
-
-  const totalPagado = (pagosConfirmados._sum.monto as bigint | null) ?? BigInt(0);
-  const pendiente = (venta.total as bigint) - totalPagado;
-  return { venta, pendiente };
-}
-
-/**
- * Verifica si la venta quedó completamente pagada y la marca COMPLETADA si corresponde.
- * Debe llamarse dentro de una transacción o directamente según el contexto.
- */
-async function verificarCompletitudVenta(ventaId: number): Promise<void> {
-  const result = await calcularMontoPendiente(ventaId);
-  if (result.pendiente <= BigInt(0) && result.venta.estado !== 'COMPLETADA') {
-    await prisma.venta.update({
-      where: { id: ventaId },
-      data: { estado: 'COMPLETADA' },
-    });
-    logger.info('Venta marcada como COMPLETADA', { ventaId });
-  }
-}
+const calcularMontoPendiente = (ventaId: number) => paymentService.calcularMontoPendiente(ventaId);
+const verificarCompletitudVenta = (ventaId: number) => paymentService.verificarCompletitudVenta(ventaId);
 
 // ---------------------------------------------------------------------------
 // Rutas de webhook — SIN autenticación (llamadas por pasarelas externas)
 // Deben registrarse ANTES de router.use(authenticate)
 // ---------------------------------------------------------------------------
 
-/**
- * Reclama de forma atómica el procesamiento de un evento de webhook usando la
- * restricción única (proveedor+event_id). Evita el race TOCTOU: solo el primer
- * request crea la fila (estado EN_PROCESO); los duplicados concurrentes reciben
- * P2002 y se descartan. Un evento previo en ERROR puede reprocesarse.
- * Devuelve el evento reclamado, o null si ya fue/está siendo procesado.
- */
-async function reclamarEventoWebhook(
-  proveedor: string,
-  eventId: string,
-  payload: unknown
-): Promise<{ id: number } | null> {
-  const payloadJson = toJson(payload);
-  try {
-    return await prisma.webhookEvento.create({
-      data: { proveedor, event_id: eventId, payload: payloadJson, estado: 'EN_PROCESO' },
-    });
-  } catch (e) {
-    if ((e as { code?: string }).code !== 'P2002') throw e;
-    const existente = await prisma.webhookEvento.findUnique({
-      where: { proveedor_event_id: { proveedor, event_id: eventId } },
-    });
-    if (!existente || existente.estado !== 'ERROR') return null; // ya procesado o en proceso
-    const claim = await prisma.webhookEvento.updateMany({
-      where: { id: existente.id, estado: 'ERROR' },
-      data: { estado: 'EN_PROCESO', payload: payloadJson },
-    });
-    return claim.count > 0 ? { id: existente.id } : null;
-  }
-}
-
 // POST /pagos/webhook/bancard
 router.post('/webhook/bancard', async (req: Request, res: Response): Promise<void> => {
   const payload = req.body as Record<string, unknown>;
   const shopProcessId = (payload.operation as Record<string, unknown> | undefined)?.shop_process_id?.toString() ?? null;
-
-  try {
-    // Claim atómico (idempotencia sin TOCTOU)
-    const evento = await reclamarEventoWebhook('BANCARD', shopProcessId ?? `BANCARD_${Date.now()}`, payload);
-    if (!evento) {
-      logger.info('Webhook Bancard duplicado o ya procesado', { shopProcessId });
-      res.json({ success: true, message: 'ya recibido' });
-      return;
-    }
-
-    // Procesar mediante el proveedor
-    const resultado = await BancardProvider.procesarWebhook(payload);
-    logger.info('Webhook Bancard procesado', { exitoso: resultado.exitoso, referencia: resultado.referencia_externa });
-
-    if (resultado.exitoso && resultado.referencia_externa) {
-      // Buscar el intento de pago por referencia_externa
-      const intento = await prisma.pagoIntento.findFirst({
-        where: { referencia_externa: resultado.referencia_externa },
-        include: { pago: true },
-      });
-
-      if (intento) {
-        // Validar monto confirmado contra el monto del pago (evita confirmar pagando menos).
-        const montoOk =
-          resultado.monto_confirmado === undefined ||
-          resultado.monto_confirmado === intento.pago.monto;
-
-        if (!montoOk) {
-          logger.warn('Webhook Bancard: monto confirmado no coincide con el pago', {
-            referencia: resultado.referencia_externa,
-            esperado: intento.pago.monto.toString(),
-            recibido: resultado.monto_confirmado?.toString(),
-          });
-          await registrarAuditoria({
-            modulo: 'PAGOS',
-            accion: 'RECHAZO_WEBHOOK_BANCARD_MONTO',
-            registroId: intento.pago_id,
-            valorNuevo: { referencia: resultado.referencia_externa, esperado: intento.pago.monto.toString(), recibido: resultado.monto_confirmado?.toString() },
-            ip: req.ip,
-          });
-        } else if (intento.pago.estado !== 'CONFIRMADO') {
-          await prisma.$transaction(async (tx) => {
-            await tx.pagoIntento.update({
-              where: { id: intento.id },
-              data: {
-                estado: 'CONFIRMADO',
-                response_payload: toJson(resultado.response_payload ?? {}),
-              },
-            });
-            await tx.pago.update({
-              where: { id: intento.pago_id },
-              data: { estado: 'CONFIRMADO', fecha_pago: new Date() },
-            });
-          });
-
-          if (intento.pago.venta_id) {
-            await verificarCompletitudVenta(intento.pago.venta_id);
-          }
-
-          await registrarAuditoria({
-            modulo: 'PAGOS',
-            accion: 'CONFIRMAR_WEBHOOK_BANCARD',
-            registroId: intento.pago_id,
-            valorNuevo: { referencia: resultado.referencia_externa, exitoso: true },
-            ip: req.ip,
-          });
-        }
-      } else {
-        logger.warn('Webhook Bancard: no se encontró intento para referencia', {
-          referencia: resultado.referencia_externa,
-        });
-      }
-    }
-
-    // Actualizar estado del evento
-    await prisma.webhookEvento.update({
-      where: { id: evento.id },
-      data: {
-        estado: resultado.exitoso ? 'PROCESADO' : 'ERROR',
-        procesado_en: new Date(),
-        error: resultado.exitoso ? null : JSON.stringify(resultado.response_payload),
-      },
-    });
-
-    // Siempre responder 200 (regla de webhooks)
-    res.json({ success: true });
-  } catch (error) {
-    logger.error('Error procesando webhook Bancard', {
-      error: error instanceof Error ? error.message : String(error),
-      shopProcessId,
-    });
-
-    // Intentar marcar el evento como ERROR si existe
-    if (shopProcessId) {
-      try {
-        await prisma.webhookEvento.updateMany({
-          where: { proveedor: 'BANCARD', event_id: shopProcessId, estado: 'RECIBIDO' },
-          data: { estado: 'ERROR', error: error instanceof Error ? error.message : String(error) },
-        });
-      } catch {
-        // ignorar errores secundarios
-      }
-    }
-
-    // Siempre 200 para que la pasarela no reintente indefinidamente
-    res.json({ success: true });
-  }
+  // manejarWebhook nunca lanza; siempre respondemos 200 (regla de webhooks).
+  await paymentService.manejarWebhook({
+    proveedor: 'BANCARD',
+    provider: BancardProvider,
+    payload,
+    eventId: shopProcessId,
+    ip: req.ip,
+  });
+  res.json({ success: true });
 });
 
 // POST /pagos/webhook/pagopar
 router.post('/webhook/pagopar', async (req: Request, res: Response): Promise<void> => {
   const payload = req.body as Record<string, unknown>;
   const idTransaccion = (payload.id_transaccion ?? payload.referencia)?.toString() ?? null;
-
-  try {
-    // Claim atómico (idempotencia sin TOCTOU)
-    const evento = await reclamarEventoWebhook('PAGOPAR', idTransaccion ?? `PAGOPAR_${Date.now()}`, payload);
-    if (!evento) {
-      logger.info('Webhook Pagopar duplicado o ya procesado', { idTransaccion });
-      res.json({ success: true, message: 'ya recibido' });
-      return;
-    }
-
-    const resultado = await PagoparProvider.procesarWebhook(payload);
-    logger.info('Webhook Pagopar procesado', { exitoso: resultado.exitoso, referencia: resultado.referencia_externa });
-
-    if (resultado.exitoso && resultado.referencia_externa) {
-      const intento = await prisma.pagoIntento.findFirst({
-        where: { referencia_externa: resultado.referencia_externa },
-        include: { pago: true },
-      });
-
-      if (intento) {
-        const montoOk =
-          resultado.monto_confirmado === undefined ||
-          resultado.monto_confirmado === intento.pago.monto;
-
-        if (!montoOk) {
-          logger.warn('Webhook Pagopar: monto confirmado no coincide con el pago', {
-            referencia: resultado.referencia_externa,
-            esperado: intento.pago.monto.toString(),
-            recibido: resultado.monto_confirmado?.toString(),
-          });
-          await registrarAuditoria({
-            modulo: 'PAGOS',
-            accion: 'RECHAZO_WEBHOOK_PAGOPAR_MONTO',
-            registroId: intento.pago_id,
-            valorNuevo: { referencia: resultado.referencia_externa, esperado: intento.pago.monto.toString(), recibido: resultado.monto_confirmado?.toString() },
-            ip: req.ip,
-          });
-        } else if (intento.pago.estado !== 'CONFIRMADO') {
-          await prisma.$transaction(async (tx) => {
-            await tx.pagoIntento.update({
-              where: { id: intento.id },
-              data: {
-                estado: 'CONFIRMADO',
-                response_payload: toJson(resultado.response_payload ?? {}),
-              },
-            });
-            await tx.pago.update({
-              where: { id: intento.pago_id },
-              data: { estado: 'CONFIRMADO', fecha_pago: new Date() },
-            });
-          });
-
-          if (intento.pago.venta_id) {
-            await verificarCompletitudVenta(intento.pago.venta_id);
-          }
-
-          await registrarAuditoria({
-            modulo: 'PAGOS',
-            accion: 'CONFIRMAR_WEBHOOK_PAGOPAR',
-            registroId: intento.pago_id,
-            valorNuevo: { referencia: resultado.referencia_externa, exitoso: true },
-            ip: req.ip,
-          });
-        }
-      } else {
-        logger.warn('Webhook Pagopar: no se encontró intento para referencia', {
-          referencia: resultado.referencia_externa,
-        });
-      }
-    }
-
-    await prisma.webhookEvento.update({
-      where: { id: evento.id },
-      data: {
-        estado: resultado.exitoso ? 'PROCESADO' : 'ERROR',
-        procesado_en: new Date(),
-        error: resultado.exitoso ? null : JSON.stringify(resultado.response_payload),
-      },
-    });
-
-    res.json({ success: true });
-  } catch (error) {
-    logger.error('Error procesando webhook Pagopar', {
-      error: error instanceof Error ? error.message : String(error),
-      idTransaccion,
-    });
-
-    if (idTransaccion) {
-      try {
-        await prisma.webhookEvento.updateMany({
-          where: { proveedor: 'PAGOPAR', event_id: idTransaccion, estado: 'RECIBIDO' },
-          data: { estado: 'ERROR', error: error instanceof Error ? error.message : String(error) },
-        });
-      } catch {
-        // ignorar errores secundarios
-      }
-    }
-
-    res.json({ success: true });
-  }
+  await paymentService.manejarWebhook({
+    proveedor: 'PAGOPAR',
+    provider: PagoparProvider,
+    payload,
+    eventId: idTransaccion,
+    ip: req.ip,
+  });
+  res.json({ success: true });
 });
 
 // ---------------------------------------------------------------------------

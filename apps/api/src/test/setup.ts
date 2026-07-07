@@ -16,7 +16,7 @@ vi.mock('../lib/prisma', () => ({
     libreta: { findFirst: vi.fn(), update: vi.fn() },
     libretaMovimiento: { create: vi.fn() },
     producto: { findUnique: vi.fn() },
-    pago: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+    pago: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), aggregate: vi.fn() },
     pagoIntento: { create: vi.fn(), update: vi.fn(), findFirst: vi.fn() },
     webhookEvento: { findFirst: vi.fn(), upsert: vi.fn(), update: vi.fn() },
     stockActual: { findUnique: vi.fn(), upsert: vi.fn() },
