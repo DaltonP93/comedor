@@ -8,6 +8,7 @@ import { calcularTotalesVenta } from '../lib/calculos';
 import { StockService } from '../services/StockService';
 import { LibretaService } from '../services/LibretaService';
 import { AppError } from '../middleware/errorHandler';
+import { clientePublicSelect } from '../lib/selects';
 
 const router = Router();
 router.use(authenticate);
@@ -59,7 +60,7 @@ router.get('/', requirePermiso('VENTAS:VER'), async (req: Request, res: Response
         take: limitNum,
         orderBy: { creado_en: 'desc' },
         include: {
-          cliente: true,
+          cliente: { select: clientePublicSelect },
           usuario: { select: { nombre: true, apellido: true } },
           sucursal: true,
           _count: { select: { items: true } },
@@ -86,7 +87,7 @@ router.get('/:id', requirePermiso('VENTAS:VER'), async (req: Request, res: Respo
       where: { id: parseInt(req.params.id) },
       include: {
         items: { include: { producto: true, concepto: true } },
-        cliente: true,
+        cliente: { select: clientePublicSelect },
         usuario: { select: { nombre: true, apellido: true } },
         sucursal: true,
         pagos: true,

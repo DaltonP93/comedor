@@ -155,21 +155,30 @@ async function main() {
   });
   console.log('Sucursal creada:', sucursal.nombre);
 
-  // Admin user
-  const passwordHash = await bcrypt.hash('admin123', 10);
+  // Admin user — credenciales desde el entorno; en producción son obligatorias.
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@comedor.com';
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (process.env.NODE_ENV === 'production' && !adminPassword) {
+    throw new Error('ADMIN_PASSWORD es obligatorio en producción para crear el usuario admin.');
+  }
+  const passwordPlano = adminPassword || 'admin123'; // fallback solo para demo/dev
+  const passwordHash = await bcrypt.hash(passwordPlano, 10);
   const adminUser = await prisma.usuario.upsert({
-    where: { email: 'admin@comedor.com' },
+    where: { email: adminEmail },
     update: {},
     create: {
       nombre: 'Administrador',
       apellido: 'Sistema',
-      email: 'admin@comedor.com',
+      email: adminEmail,
       password_hash: passwordHash,
       rol_id: createdRoles['SUPERADMIN'],
       sucursal_id: sucursal.id,
     },
   });
   console.log('Usuario admin creado:', adminUser.email);
+  if (!adminPassword) {
+    console.warn('⚠️  Usuario admin con contraseña de demo. Definí ADMIN_PASSWORD en producción.');
+  }
 
   // Caja default
   await prisma.caja.upsert({

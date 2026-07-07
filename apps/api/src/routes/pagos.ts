@@ -9,6 +9,7 @@ import { logger } from '../lib/logger';
 import { BancardProvider } from '../lib/payment/BancardProvider';
 import { PagoparProvider } from '../lib/payment/PagoparProvider';
 import type { PaymentProvider } from '../lib/payment/PaymentProvider';
+import { clientePublicSelect } from '../lib/selects';
 
 const router = Router();
 
@@ -115,38 +116,51 @@ router.post('/webhook/bancard', async (req: Request, res: Response): Promise<voi
       });
 
       if (intento) {
-        await prisma.$transaction(async (tx) => {
-          // Actualizar intento
-          await tx.pagoIntento.update({
-            where: { id: intento.id },
-            data: {
-              estado: 'CONFIRMADO',
-              response_payload: JSON.parse(JSON.stringify(resultado.response_payload ?? {})),
-            },
+        // Validar monto confirmado contra el monto del pago (evita confirmar pagando menos).
+        const montoOk =
+          resultado.monto_confirmado === undefined ||
+          resultado.monto_confirmado === intento.pago.monto;
+
+        if (!montoOk) {
+          logger.warn('Webhook Bancard: monto confirmado no coincide con el pago', {
+            referencia: resultado.referencia_externa,
+            esperado: intento.pago.monto.toString(),
+            recibido: resultado.monto_confirmado?.toString(),
+          });
+          await registrarAuditoria({
+            modulo: 'PAGOS',
+            accion: 'RECHAZO_WEBHOOK_BANCARD_MONTO',
+            registroId: intento.pago_id,
+            valorNuevo: { referencia: resultado.referencia_externa, esperado: intento.pago.monto.toString(), recibido: resultado.monto_confirmado?.toString() },
+            ip: req.ip,
+          });
+        } else if (intento.pago.estado !== 'CONFIRMADO') {
+          await prisma.$transaction(async (tx) => {
+            await tx.pagoIntento.update({
+              where: { id: intento.id },
+              data: {
+                estado: 'CONFIRMADO',
+                response_payload: JSON.parse(JSON.stringify(resultado.response_payload ?? {})),
+              },
+            });
+            await tx.pago.update({
+              where: { id: intento.pago_id },
+              data: { estado: 'CONFIRMADO', fecha_pago: new Date() },
+            });
           });
 
-          // Confirmar pago
-          await tx.pago.update({
-            where: { id: intento.pago_id },
-            data: {
-              estado: 'CONFIRMADO',
-              fecha_pago: new Date(),
-            },
-          });
-        });
+          if (intento.pago.venta_id) {
+            await verificarCompletitudVenta(intento.pago.venta_id);
+          }
 
-        // Verificar completitud fuera de la transacción anidada
-        if (intento.pago.venta_id) {
-          await verificarCompletitudVenta(intento.pago.venta_id);
+          await registrarAuditoria({
+            modulo: 'PAGOS',
+            accion: 'CONFIRMAR_WEBHOOK_BANCARD',
+            registroId: intento.pago_id,
+            valorNuevo: { referencia: resultado.referencia_externa, exitoso: true },
+            ip: req.ip,
+          });
         }
-
-        await registrarAuditoria({
-          modulo: 'PAGOS',
-          accion: 'CONFIRMAR_WEBHOOK_BANCARD',
-          registroId: intento.pago_id,
-          valorNuevo: { referencia: resultado.referencia_externa, exitoso: true },
-          ip: req.ip,
-        });
       } else {
         logger.warn('Webhook Bancard: no se encontró intento para referencia', {
           referencia: resultado.referencia_externa,
@@ -233,35 +247,50 @@ router.post('/webhook/pagopar', async (req: Request, res: Response): Promise<voi
       });
 
       if (intento) {
-        await prisma.$transaction(async (tx) => {
-          await tx.pagoIntento.update({
-            where: { id: intento.id },
-            data: {
-              estado: 'CONFIRMADO',
-              response_payload: JSON.parse(JSON.stringify(resultado.response_payload ?? {})),
-            },
+        const montoOk =
+          resultado.monto_confirmado === undefined ||
+          resultado.monto_confirmado === intento.pago.monto;
+
+        if (!montoOk) {
+          logger.warn('Webhook Pagopar: monto confirmado no coincide con el pago', {
+            referencia: resultado.referencia_externa,
+            esperado: intento.pago.monto.toString(),
+            recibido: resultado.monto_confirmado?.toString(),
+          });
+          await registrarAuditoria({
+            modulo: 'PAGOS',
+            accion: 'RECHAZO_WEBHOOK_PAGOPAR_MONTO',
+            registroId: intento.pago_id,
+            valorNuevo: { referencia: resultado.referencia_externa, esperado: intento.pago.monto.toString(), recibido: resultado.monto_confirmado?.toString() },
+            ip: req.ip,
+          });
+        } else if (intento.pago.estado !== 'CONFIRMADO') {
+          await prisma.$transaction(async (tx) => {
+            await tx.pagoIntento.update({
+              where: { id: intento.id },
+              data: {
+                estado: 'CONFIRMADO',
+                response_payload: JSON.parse(JSON.stringify(resultado.response_payload ?? {})),
+              },
+            });
+            await tx.pago.update({
+              where: { id: intento.pago_id },
+              data: { estado: 'CONFIRMADO', fecha_pago: new Date() },
+            });
           });
 
-          await tx.pago.update({
-            where: { id: intento.pago_id },
-            data: {
-              estado: 'CONFIRMADO',
-              fecha_pago: new Date(),
-            },
-          });
-        });
+          if (intento.pago.venta_id) {
+            await verificarCompletitudVenta(intento.pago.venta_id);
+          }
 
-        if (intento.pago.venta_id) {
-          await verificarCompletitudVenta(intento.pago.venta_id);
+          await registrarAuditoria({
+            modulo: 'PAGOS',
+            accion: 'CONFIRMAR_WEBHOOK_PAGOPAR',
+            registroId: intento.pago_id,
+            valorNuevo: { referencia: resultado.referencia_externa, exitoso: true },
+            ip: req.ip,
+          });
         }
-
-        await registrarAuditoria({
-          modulo: 'PAGOS',
-          accion: 'CONFIRMAR_WEBHOOK_PAGOPAR',
-          registroId: intento.pago_id,
-          valorNuevo: { referencia: resultado.referencia_externa, exitoso: true },
-          ip: req.ip,
-        });
       } else {
         logger.warn('Webhook Pagopar: no se encontró intento para referencia', {
           referencia: resultado.referencia_externa,
@@ -437,7 +466,7 @@ router.get('/:id', requirePermiso('VENTAS:VER'), async (req: Request, res: Respo
       where: { id: parseInt(req.params.id) },
       include: {
         venta: { include: { items: true } },
-        cliente: true,
+        cliente: { select: clientePublicSelect },
         libreta: true,
         intentos: { orderBy: { creado_en: 'desc' } },
       },
@@ -782,9 +811,14 @@ router.post(
         referencia_externa?: string;
       };
 
-      const venta = await prisma.venta.findUnique({ where: { id: venta_id } });
-      if (!venta) {
-        res.status(404).json({ success: false, message: 'Venta no encontrada' });
+      const { venta, pendiente } = await calcularMontoPendiente(venta_id);
+
+      // El monto no puede exceder el pendiente real de la venta (evita sobrepago manipulado).
+      if (BigInt(monto) > pendiente) {
+        res.status(400).json({
+          success: false,
+          message: `El monto (${monto}) excede el pendiente de la venta (${pendiente.toString()})`,
+        });
         return;
       }
 
@@ -825,7 +859,7 @@ router.post(
 // PUT /pagos/:id/confirmar — compatibilidad con método PUT (mantener para clientes existentes)
 router.put(
   '/:id/confirmar',
-  requirePermiso('VENTAS:EDITAR'),
+  requirePermiso('PAGOS:CONFIRMAR'),
   async (req: Request, res: Response): Promise<void> => {
     try {
       const id = parseInt(req.params.id);
@@ -868,7 +902,7 @@ router.put(
 // PUT /pagos/:id/rechazar — compatibilidad con método PUT
 router.put(
   '/:id/rechazar',
-  requirePermiso('VENTAS:EDITAR'),
+  requirePermiso('PAGOS:CONFIRMAR'),
   [body('motivo').notEmpty().withMessage('Motivo requerido'), handleValidation],
   async (req: Request, res: Response): Promise<void> => {
     try {

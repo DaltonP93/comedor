@@ -5,6 +5,7 @@ import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
 import { AppError } from '../middleware/errorHandler';
+import { clientePublicSelect } from '../lib/selects';
 
 const router = Router();
 router.use(authenticate);
@@ -35,7 +36,7 @@ router.get('/', requirePermiso('RESERVAS:VER'), async (req: Request, res: Respon
         take: limitNum,
         orderBy: { creado_en: 'desc' },
         include: {
-          cliente: true,
+          cliente: { select: clientePublicSelect },
           menu: true,
           sucursal: true,
         },
@@ -59,7 +60,7 @@ router.get('/:id', requirePermiso('RESERVAS:VER'), async (req: Request, res: Res
   try {
     const reserva = await prisma.reserva.findUnique({
       where: { id: parseInt(req.params.id) },
-      include: { cliente: true, menu: { include: { items: true } }, sucursal: true, venta: true },
+      include: { cliente: { select: clientePublicSelect }, menu: { include: { items: true } }, sucursal: true, venta: true },
     });
     if (!reserva) {
       res.status(404).json({ success: false, message: 'Reserva no encontrada' });
@@ -132,7 +133,7 @@ router.post(
             estado: 'CONFIRMADA',
             total,
           },
-          include: { cliente: true, menu: true },
+          include: { cliente: { select: clientePublicSelect }, menu: true },
         });
 
         return r;
@@ -169,7 +170,7 @@ router.put('/:id/estado', requirePermiso('RESERVAS:EDITAR'), async (req: Request
     const reserva = await prisma.reserva.update({
       where: { id },
       data: { estado },
-      include: { cliente: true, menu: true },
+      include: { cliente: { select: clientePublicSelect }, menu: true },
     });
 
     res.json({ success: true, message: 'Estado actualizado', data: reserva });

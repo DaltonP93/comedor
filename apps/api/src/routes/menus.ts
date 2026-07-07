@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
+import { clientePublicSelect } from '../lib/selects';
 
 const router = Router();
 router.use(authenticate);
@@ -61,7 +62,7 @@ router.get('/:id', requirePermiso('MENUS:VER'), async (req: Request, res: Respon
         items: { include: { producto: true } },
         sucursal: true,
         reservas: {
-          include: { cliente: true },
+          include: { cliente: { select: clientePublicSelect } },
           orderBy: { creado_en: 'desc' },
         },
       },

@@ -10,6 +10,7 @@ import { logger } from '../lib/logger';
 import { AppError } from '../middleware/errorHandler';
 import { obtenerSiguienteNumero, formatearNumeroFactura } from '../lib/fiscal/SecuenciaService';
 import { SifenProvider } from '../lib/fiscal/SifenProvider';
+import { clientePublicSelect } from '../lib/selects';
 
 type PrismaTx = Prisma.TransactionClient;
 
@@ -103,7 +104,7 @@ router.get(
     const factura = await prisma.factura.findUnique({
       where: { id },
       include: {
-        cliente: true,
+        cliente: { select: clientePublicSelect },
         venta: {
           include: {
             items: { include: { producto: true, concepto: true } },
@@ -151,7 +152,7 @@ router.post(
       where: { id: venta_id },
       include: {
         items: { include: { producto: true } },
-        cliente: true,
+        cliente: { select: clientePublicSelect },
       },
     });
 
@@ -279,7 +280,7 @@ router.post(
             estado: 'VIGENTE',
           },
           include: {
-            cliente: true,
+            cliente: { select: clientePublicSelect },
             venta: { include: { items: true } },
           },
         });
@@ -362,7 +363,7 @@ router.post(
     const facturaCompleta = await prisma.factura.findUnique({
       where: { id: resultado.factura.id },
       include: {
-        cliente: true,
+        cliente: { select: clientePublicSelect },
         venta: { include: { items: { include: { producto: true } } } },
       },
     });
@@ -393,7 +394,7 @@ router.get(
     const factura = await prisma.factura.findUnique({
       where: { id },
       include: {
-        cliente: true,
+        cliente: { select: clientePublicSelect },
         venta: {
           include: {
             items: { include: { producto: true } },

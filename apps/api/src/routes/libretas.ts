@@ -5,6 +5,7 @@ import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
 import { generarPDFEstadoCuenta } from '../lib/pdf';
+import { clientePublicSelect } from '../lib/selects';
 
 const router = Router();
 router.use(authenticate);
@@ -27,7 +28,7 @@ router.get('/', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Respon
         skip,
         take: limitNum,
         orderBy: { creado_en: 'desc' },
-        include: { cliente: true, empresa: true },
+        include: { cliente: { select: clientePublicSelect }, empresa: true },
       }),
       prisma.libreta.count({ where }),
     ]);
@@ -48,7 +49,7 @@ router.get('/:id', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Res
   try {
     let libreta = await prisma.libreta.findUnique({
       where: { id: parseInt(req.params.id) },
-      include: { cliente: true, empresa: true },
+      include: { cliente: { select: clientePublicSelect }, empresa: true },
     });
     if (!libreta) {
       res.status(404).json({ success: false, message: 'Libreta no encontrada' });
@@ -63,7 +64,7 @@ router.get('/:id', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Res
         libreta = await prisma.libreta.update({
           where: { id: libreta.id },
           data: { estado: 'BLOQUEADA', saldo_vencido: libreta.saldo_actual },
-          include: { cliente: true, empresa: true },
+          include: { cliente: { select: clientePublicSelect }, empresa: true },
         });
         bloqueada_automaticamente = true;
 
@@ -150,7 +151,7 @@ router.post(
           dia_vencimiento,
           estado: 'ACTIVA',
         },
-        include: { cliente: true },
+        include: { cliente: { select: clientePublicSelect } },
       });
 
       res.status(201).json({ success: true, message: 'Libreta creada', data: libreta });
@@ -203,7 +204,7 @@ router.post(
 
       const libreta = await prisma.libreta.findUnique({
         where: { id },
-        include: { cliente: true },
+        include: { cliente: { select: clientePublicSelect } },
       });
       if (!libreta) {
         res.status(404).json({ success: false, message: 'Libreta no encontrada' });
@@ -348,7 +349,7 @@ router.get('/:id/estado-cuenta/pdf', requirePermiso('LIBRETAS:VER'), async (req:
 
     const libreta = await prisma.libreta.findUnique({
       where: { id },
-      include: { cliente: true },
+      include: { cliente: { select: clientePublicSelect } },
     });
     if (!libreta) {
       res.status(404).json({ success: false, message: 'Libreta no encontrada' });

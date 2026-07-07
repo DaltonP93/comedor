@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
+import { clientePublicSelect } from '../lib/selects';
 
 const router = Router();
 router.use(authenticate);
@@ -61,7 +62,7 @@ router.get('/dashboard', requirePermiso('DASHBOARD:VER'), async (req: Request, r
         where: { creado_en: { gte: hoy, lt: manana }, estado: { not: 'ANULADA' } },
         orderBy: { creado_en: 'desc' },
         take: 10,
-        include: { cliente: true, usuario: { select: { nombre: true } } },
+        include: { cliente: { select: clientePublicSelect }, usuario: { select: { nombre: true } } },
       }),
       prisma.menu.count({ where: { fecha: { gte: hoy, lt: manana } } }),
       prisma.menu.count({ where: { fecha: { gte: hoy, lt: manana }, estado: 'PUBLICADO' } }),
@@ -256,7 +257,7 @@ router.get('/libreta', requirePermiso('REPORTES:VER'), async (req: Request, res:
 
     const libretas = await prisma.libreta.findMany({
       where,
-      include: { cliente: true, empresa: true },
+      include: { cliente: { select: clientePublicSelect }, empresa: true },
       orderBy: { saldo_actual: 'desc' },
     });
 
@@ -304,7 +305,7 @@ router.get('/cocina', requirePermiso('COCINA:VER'), async (req: Request, res: Re
         items: { include: { producto: true } },
         reservas: {
           where: { estado: { in: ['CONFIRMADA', 'EN_COCINA', 'PREPARADA'] } },
-          include: { cliente: true },
+          include: { cliente: { select: clientePublicSelect } },
         },
       },
     });

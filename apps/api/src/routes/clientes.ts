@@ -46,7 +46,7 @@ router.get('/', requirePermiso('CLIENTES:VER'), async (req: Request, res: Respon
 
     res.json({
       success: true,
-      data: clientes,
+      data: clientes.map(({ password_hash: _ph, ...c }) => c),
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
@@ -71,7 +71,8 @@ router.get('/:id', requirePermiso('CLIENTES:VER'), async (req: Request, res: Res
       return;
     }
 
-    res.json({ success: true, data: cliente });
+    const { password_hash: _ph, ...clienteSeguro } = cliente;
+    res.json({ success: true, data: clienteSeguro });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: 'Error al obtener cliente' });
@@ -106,9 +107,10 @@ router.get('/:id/estado-cuenta', requirePermiso('CLIENTES:VER'), async (req: Req
       include: { venta: true },
     });
 
+    const { password_hash: _ph, ...clienteSeguro } = cliente;
     res.json({
       success: true,
-      data: { cliente, ventas, movimientos },
+      data: { cliente: clienteSeguro, ventas, movimientos },
     });
   } catch (error) {
     console.error(error);
@@ -186,7 +188,8 @@ router.post(
         ip: req.ip,
       });
 
-      res.status(201).json({ success: true, message: 'Cliente creado', data: cliente });
+      const { password_hash: _ph, ...clienteSeguro } = cliente;
+      res.status(201).json({ success: true, message: 'Cliente creado', data: clienteSeguro });
     } catch (error) {
       console.error(error);
       res.status(500).json({ success: false, message: 'Error al crear cliente' });
@@ -208,25 +211,40 @@ router.put(
         return;
       }
 
-      const { password, ...resto } = req.body;
-      const data = { ...resto };
-      if (password) {
-        data.password_hash = await bcrypt.hash(password, 10);
-      }
+      // Allowlist explícita (evita mass assignment de password_hash/estado no deseado).
+      const b = req.body;
+      const data = {
+        nombre: b.nombre ?? undefined,
+        tipo_cliente: b.tipo_cliente ?? undefined,
+        razon_social: b.razon_social ?? undefined,
+        documento_tipo: b.documento_tipo ?? undefined,
+        documento_numero: b.documento_numero ?? undefined,
+        ruc: b.ruc ?? undefined,
+        telefono: b.telefono ?? undefined,
+        whatsapp: b.whatsapp ?? undefined,
+        email: b.email ?? undefined,
+        direccion: b.direccion ?? undefined,
+        canal_preferido: b.canal_preferido ?? undefined,
+        permite_notificaciones: b.permite_notificaciones ?? undefined,
+        estado: b.estado ?? undefined,
+        ...(b.password ? { password_hash: await bcrypt.hash(b.password, 10) } : {}),
+      };
 
       const cliente = await prisma.cliente.update({ where: { id }, data });
 
+      const { password_hash: _phA, ...anteriorSeguro } = anterior;
       await registrarAuditoria({
         usuarioId: req.user!.userId,
         modulo: 'CLIENTES',
         accion: 'EDITAR',
         registroId: id,
-        valorAnterior: anterior as unknown as Record<string, unknown>,
-        valorNuevo: req.body,
+        valorAnterior: anteriorSeguro as unknown as Record<string, unknown>,
+        valorNuevo: { ...data, password_hash: data.password_hash ? '***' : undefined },
         ip: req.ip,
       });
 
-      res.json({ success: true, message: 'Cliente actualizado', data: cliente });
+      const { password_hash: _ph, ...clienteSeguro } = cliente;
+      res.json({ success: true, message: 'Cliente actualizado', data: clienteSeguro });
     } catch (error) {
       console.error(error);
       res.status(500).json({ success: false, message: 'Error al actualizar cliente' });

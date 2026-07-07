@@ -4,6 +4,15 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import { handleValidation } from '../middleware/validate';
+import { rateLimitMiddleware } from '../middleware/rateLimit';
+import { clientePublicSelect } from '../lib/selects';
+
+const portalAuthRateLimit = rateLimitMiddleware({
+  keyPrefix: 'portal-auth',
+  windowSeconds: 900,
+  maxAttempts: 10,
+  message: 'Demasiados intentos. Intentá de nuevo en unos minutos.',
+});
 
 const router = Router();
 function resolvePortalSecret(): string {
@@ -101,10 +110,11 @@ async function getClienteOrFail(req: PortalRequest, res: Response) {
 
 router.post(
   '/auth/register',
+  portalAuthRateLimit,
   [
     body('nombre').trim().notEmpty().withMessage('Nombre requerido'),
     body('telefono').trim().notEmpty().withMessage('Telefono requerido'),
-    body('password').isLength({ min: 6 }).withMessage('La contrasena debe tener al menos 6 caracteres'),
+    body('password').isLength({ min: 8 }).withMessage('La contrasena debe tener al menos 8 caracteres'),
     handleValidation,
   ],
   async (req: Request, res: Response): Promise<void> => {
@@ -179,6 +189,7 @@ router.post(
 
 router.post(
   '/auth/login',
+  portalAuthRateLimit,
   [
     body('identificador').trim().notEmpty().withMessage('Email o telefono requerido'),
     body('password').notEmpty().withMessage('Contrasena requerida'),
@@ -512,10 +523,11 @@ router.get('/pagos', authenticateCliente, async (req: PortalRequest, res: Respon
 
 router.post(
   '/registro',
+  portalAuthRateLimit,
   [
     body('nombre').trim().notEmpty().withMessage('Nombre requerido'),
     body('telefono').trim().notEmpty().withMessage('Telefono requerido'),
-    body('password').isLength({ min: 6 }).withMessage('La contrasena debe tener al menos 6 caracteres'),
+    body('password').isLength({ min: 8 }).withMessage('La contrasena debe tener al menos 8 caracteres'),
     handleValidation,
   ],
   async (req: Request, res: Response): Promise<void> => {
@@ -663,7 +675,7 @@ router.get('/facturas/:id/pdf', authenticateCliente, async (req: PortalRequest, 
     const factura = await prisma.factura.findFirst({
       where: { id: facturaId, venta: { cliente_id: req.cliente!.clienteId } },
       include: {
-        venta: { include: { items: { include: { producto: true } }, cliente: true } },
+        venta: { include: { items: { include: { producto: true } }, cliente: { select: clientePublicSelect } } },
       },
     });
 

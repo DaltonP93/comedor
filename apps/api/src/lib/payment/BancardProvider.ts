@@ -21,19 +21,20 @@ function calcularTokenNuevaCobro(shopProcessId: string, monto: bigint): string {
 }
 
 /**
- * Verifica la firma del webhook Bancard:
- * SHA256(private_key + operation_id + token + shop_process_id)
+ * Verifica el token de confirmación del webhook Bancard:
+ * MD5(private_key + shop_process_id + "confirm" + amount + currency)
+ * (mismo esquema que el token de "new_charge", con la acción "confirm").
+ * El token recibido NO debe ser una entrada del hash; se compara contra el
+ * valor recalculado localmente a partir de datos que solo conoce el comercio.
  */
-function verificarFirmaWebhook(
-  operationId: string,
-  token: string,
-  shopProcessId: string
+function verificarTokenConfirmacion(
+  shopProcessId: string,
+  amount: string,
+  tokenRecibido: string
 ): boolean {
-  const raw = `${PRIVATE_KEY}${operationId}${token}${shopProcessId}`;
-  const esperado = crypto.createHash('sha256').update(raw).digest('hex');
-  // En modo sandbox no hay firma real; se acepta siempre
-  if (SANDBOX) return true;
-  return esperado === token;
+  const raw = `${PRIVATE_KEY}${shopProcessId}confirm${amount}PYG`;
+  const esperado = crypto.createHash('md5').update(raw).digest('hex');
+  return esperado === tokenRecibido;
 }
 
 export const BancardProvider: PaymentProvider = {
@@ -109,10 +110,11 @@ export const BancardProvider: PaymentProvider = {
     const operation = body.operation ?? {};
     const shopProcessId = operation.shop_process_id ?? '';
     const token = operation.token ?? '';
-    const operationId = operation.operation_id ?? '';
+    const montoStr = operation.amount_detail?.amount;
 
-    if (!SANDBOX && !verificarFirmaWebhook(operationId, token, shopProcessId)) {
-      logger.warn('BancardProvider firma de webhook inválida', { shopProcessId });
+    // Verificación de firma en modo real. La ausencia de token = rechazo.
+    if (!SANDBOX && (!token || !verificarTokenConfirmacion(shopProcessId, montoStr ?? '', token))) {
+      logger.warn('BancardProvider firma de webhook ausente o inválida', { shopProcessId });
       return {
         exitoso: false,
         referencia_externa: shopProcessId,
@@ -121,7 +123,6 @@ export const BancardProvider: PaymentProvider = {
     }
 
     const exitoso = operation.response_code === '00';
-    const montoStr = operation.amount_detail?.amount;
     const montoConfirmado = montoStr
       ? BigInt(Math.round(parseFloat(montoStr) * 100))
       : undefined;
