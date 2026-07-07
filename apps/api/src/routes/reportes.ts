@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { clientePublicSelect } from '../lib/selects';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -138,7 +139,7 @@ router.get('/dashboard', requirePermiso('DASHBOARD:VER'), async (req: Request, r
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener dashboard' });
   }
 });
@@ -187,7 +188,7 @@ router.get('/ventas', requirePermiso('REPORTES:VER'), async (req: Request, res: 
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al generar reporte de ventas' });
   }
 });
@@ -241,7 +242,7 @@ router.get('/stock', requirePermiso('REPORTES:VER'), async (req: Request, res: R
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al generar reporte de stock' });
   }
 });
@@ -279,7 +280,7 @@ router.get('/libreta', requirePermiso('REPORTES:VER'), async (req: Request, res:
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al generar reporte de libretas' });
   }
 });
@@ -312,7 +313,7 @@ router.get('/cocina', requirePermiso('COCINA:VER'), async (req: Request, res: Re
 
     res.json({ success: true, data: menus });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener reporte de cocina' });
   }
 });
@@ -439,7 +440,7 @@ router.get('/prediccion', requirePermiso('REPORTES:VER'), async (req: Request, r
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al calcular predicción de demanda' });
   }
 });
@@ -525,7 +526,7 @@ router.get('/rentabilidad', requirePermiso('REPORTES:VER'), async (req: Request,
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al generar reporte de rentabilidad' });
   }
 });
@@ -623,7 +624,7 @@ router.get('/desperdicio', requirePermiso('REPORTES:VER'), async (req: Request, 
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al generar reporte de desperdicio' });
   }
 });

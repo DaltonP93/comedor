@@ -3,6 +3,7 @@ import { body } from 'express-validator';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -46,7 +47,7 @@ router.get('/', requirePermiso('STOCK:VER'), async (req: Request, res: Response)
 
     res.json({ success: true, data: filtered });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener stock' });
   }
 });
@@ -95,7 +96,7 @@ router.get('/kardex/:productoId', requirePermiso('STOCK:VER'), async (req: Reque
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener kardex' });
   }
 });
@@ -139,7 +140,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Entrada registrada', data: movimiento });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al registrar entrada' });
     }
   }
@@ -175,7 +176,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Ajuste registrado', data: movimiento });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al registrar ajuste' });
     }
   }

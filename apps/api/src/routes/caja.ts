@@ -5,6 +5,7 @@ import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
 import { AppError } from '../middleware/errorHandler';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -41,7 +42,7 @@ router.get('/aperturas', requirePermiso('CAJA:VER'), async (req: Request, res: R
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener aperturas' });
   }
 });
@@ -95,7 +96,7 @@ router.post(
         res.status(error.statusCode).json({ success: false, message: error.message });
         return;
       }
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al abrir caja' });
     }
   }
@@ -175,7 +176,7 @@ router.post(
         res.status(error.statusCode).json({ success: false, message: error.message });
         return;
       }
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al cerrar caja' });
     }
   }
@@ -234,7 +235,7 @@ router.get('/aperturas/:id/resumen', requirePermiso('CAJA:VER'), async (req: Req
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener resumen de apertura' });
   }
 });
@@ -284,7 +285,7 @@ router.post(
         res.status(error.statusCode).json({ success: false, message: error.message });
         return;
       }
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al registrar retiro' });
     }
   }
@@ -308,7 +309,7 @@ router.get('/:cajaId/estado', requirePermiso('CAJA:VER'), async (req: Request, r
 
     res.json({ success: true, data: { caja, apertura_activa: apertura } });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener estado de caja' });
   }
 });

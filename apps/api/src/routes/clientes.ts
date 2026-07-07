@@ -5,6 +5,7 @@ import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
 import bcrypt from 'bcryptjs';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -50,7 +51,7 @@ router.get('/', requirePermiso('CLIENTES:VER'), async (req: Request, res: Respon
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener clientes' });
   }
 });
@@ -74,7 +75,7 @@ router.get('/:id', requirePermiso('CLIENTES:VER'), async (req: Request, res: Res
     const { password_hash: _ph, ...clienteSeguro } = cliente;
     res.json({ success: true, data: clienteSeguro });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener cliente' });
   }
 });
@@ -113,7 +114,7 @@ router.get('/:id/estado-cuenta', requirePermiso('CLIENTES:VER'), async (req: Req
       data: { cliente: clienteSeguro, ventas, movimientos },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener estado de cuenta' });
   }
 });
@@ -129,7 +130,7 @@ router.get('/:id/reservas', requirePermiso('CLIENTES:VER'), async (req: Request,
     });
     res.json({ success: true, data: reservas });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener reservas' });
   }
 });
@@ -145,7 +146,7 @@ router.get('/:id/ventas', requirePermiso('CLIENTES:VER'), async (req: Request, r
     });
     res.json({ success: true, data: ventas });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener ventas' });
   }
 });
@@ -191,7 +192,7 @@ router.post(
       const { password_hash: _ph, ...clienteSeguro } = cliente;
       res.status(201).json({ success: true, message: 'Cliente creado', data: clienteSeguro });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear cliente' });
     }
   }
@@ -246,7 +247,7 @@ router.put(
       const { password_hash: _ph, ...clienteSeguro } = cliente;
       res.json({ success: true, message: 'Cliente actualizado', data: clienteSeguro });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al actualizar cliente' });
     }
   }
@@ -259,7 +260,7 @@ router.delete('/:id', requirePermiso('CLIENTES:ELIMINAR'), async (req: Request, 
     await prisma.cliente.update({ where: { id }, data: { estado: 'INACTIVO' } });
     res.json({ success: true, message: 'Cliente desactivado' });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al eliminar cliente' });
   }
 });

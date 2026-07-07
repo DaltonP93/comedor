@@ -6,6 +6,7 @@ import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
 import { generarPDFEstadoCuenta } from '../lib/pdf';
 import { clientePublicSelect } from '../lib/selects';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -39,7 +40,7 @@ router.get('/', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Respon
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener libretas' });
   }
 });
@@ -81,7 +82,7 @@ router.get('/:id', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Res
 
     res.json({ success: true, data: { ...libreta, bloqueada_automaticamente } });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener libreta' });
   }
 });
@@ -112,7 +113,7 @@ router.get('/:id/movimientos', requirePermiso('LIBRETAS:VER'), async (req: Reque
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener movimientos' });
   }
 });
@@ -156,7 +157,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Libreta creada', data: libreta });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear libreta' });
     }
   }
@@ -183,7 +184,7 @@ router.put('/:id', requirePermiso('LIBRETAS:EDITAR'), async (req: Request, res: 
     });
     res.json({ success: true, message: 'Libreta actualizada', data: libreta });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar libreta' });
   }
 });
@@ -276,7 +277,7 @@ router.post(
         data: result,
       });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al registrar pago' });
     }
   }
@@ -336,7 +337,7 @@ router.post(
 
       res.json({ success: true, message: 'Ajuste registrado' });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al registrar ajuste' });
     }
   }
@@ -398,7 +399,7 @@ router.get('/:id/estado-cuenta/pdf', requirePermiso('LIBRETAS:VER'), async (req:
     res.setHeader('Content-Disposition', `attachment; filename="estado-cuenta-${id}.pdf"`);
     res.send(buffer);
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al generar PDF' });
   }
 });

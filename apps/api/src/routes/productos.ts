@@ -7,6 +7,7 @@ import { registrarAuditoria } from '../lib/audit';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { logger } from '../lib/logger';
 
 // Solo imágenes; la extensión se deriva del MIME validado, no de originalname.
 const MIME_EXT: Record<string, string> = {
@@ -90,7 +91,7 @@ router.get('/', requirePermiso('PRODUCTOS:VER'), async (req: Request, res: Respo
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener productos' });
   }
 });
@@ -116,7 +117,7 @@ router.get('/:id', requirePermiso('PRODUCTOS:VER'), async (req: Request, res: Re
 
     res.json({ success: true, data: { ...producto, stock_actual: stockActual } });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener producto' });
   }
 });
@@ -162,7 +163,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Producto creado', data: producto });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear producto' });
     }
   }
@@ -193,7 +194,7 @@ router.put('/:id', requirePermiso('PRODUCTOS:EDITAR'), async (req: Request, res:
     const producto = await prisma.producto.update({ where: { id }, data, include: { categoria: true } });
     res.json({ success: true, message: 'Producto actualizado', data: producto });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar producto' });
   }
 });
@@ -215,7 +216,7 @@ router.post('/:id/imagen', requirePermiso('PRODUCTOS:EDITAR'), upload.single('im
 
     res.json({ success: true, message: 'Imagen subida', data: producto });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al subir imagen' });
   }
 });
@@ -227,7 +228,7 @@ router.delete('/:id', requirePermiso('PRODUCTOS:ELIMINAR'), async (req: Request,
     await prisma.producto.update({ where: { id }, data: { activo: false } });
     res.json({ success: true, message: 'Producto desactivado' });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al eliminar producto' });
   }
 });

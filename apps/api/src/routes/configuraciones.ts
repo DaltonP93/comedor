@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -37,7 +38,7 @@ router.get('/', requirePermiso('CONFIGURACION:VER'), async (req: Request, res: R
     );
     res.json({ success: true, data: configMap, list: configuraciones });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener configuraciones' });
   }
 });
@@ -68,7 +69,7 @@ router.put('/:clave', requirePermiso('CONFIGURACION:EDITAR'), async (req: Reques
 
     res.json({ success: true, message: 'Configuración actualizada', data: config });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar configuración' });
   }
 });

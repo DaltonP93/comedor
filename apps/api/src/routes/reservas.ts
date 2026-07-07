@@ -6,6 +6,7 @@ import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
 import { AppError } from '../middleware/errorHandler';
 import { clientePublicSelect } from '../lib/selects';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -50,7 +51,7 @@ router.get('/', requirePermiso('RESERVAS:VER'), async (req: Request, res: Respon
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener reservas' });
   }
 });
@@ -68,7 +69,7 @@ router.get('/:id', requirePermiso('RESERVAS:VER'), async (req: Request, res: Res
     }
     res.json({ success: true, data: reserva });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener reserva' });
   }
 });
@@ -149,7 +150,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Reserva creada', data: reserva });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear reserva' });
     }
   }
@@ -175,7 +176,7 @@ router.put('/:id/estado', requirePermiso('RESERVAS:EDITAR'), async (req: Request
 
     res.json({ success: true, message: 'Estado actualizado', data: reserva });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar estado' });
   }
 });
@@ -215,7 +216,7 @@ router.post('/:id/cancelar', requirePermiso('RESERVAS:EDITAR'), async (req: Requ
 
     res.json({ success: true, message: 'Reserva cancelada', data: result });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al cancelar reserva' });
   }
 });
@@ -346,7 +347,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Venta creada desde reserva', data: venta });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al convertir reserva en venta' });
     }
   }

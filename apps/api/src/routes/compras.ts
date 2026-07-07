@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { pick } from '../lib/pick';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -36,7 +37,7 @@ router.get('/', requirePermiso('COMPRAS:VER'), async (req: Request, res: Respons
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener compras' });
   }
 });
@@ -53,7 +54,7 @@ router.get('/:id', requirePermiso('COMPRAS:VER'), async (req: Request, res: Resp
     }
     res.json({ success: true, data: compra });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener compra' });
   }
 });
@@ -141,7 +142,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Compra registrada', data: compra });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al registrar compra' });
     }
   }
@@ -162,7 +163,7 @@ router.put('/:id', requirePermiso('COMPRAS:EDITAR'), async (req: Request, res: R
     const updated = await prisma.compra.update({ where: { id }, data: pick(req.body, ['numero_factura','fecha','estado']) });
     res.json({ success: true, message: 'Compra actualizada', data: updated });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar compra' });
   }
 });
@@ -173,7 +174,7 @@ router.delete('/:id', requirePermiso('COMPRAS:ELIMINAR'), async (req: Request, r
     await prisma.compra.update({ where: { id }, data: { estado: 'ANULADA' } });
     res.json({ success: true, message: 'Compra anulada' });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al anular compra' });
   }
 });

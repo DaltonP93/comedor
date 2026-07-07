@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -40,7 +41,7 @@ router.get('/', requirePermiso('STOCK:VER'), async (req: Request, res: Response)
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener recetas' });
   }
 });
@@ -67,7 +68,7 @@ router.get('/:id', requirePermiso('STOCK:VER'), async (req: Request, res: Respon
 
     res.json({ success: true, data: receta });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener receta' });
   }
 });
@@ -129,7 +130,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Receta creada', data: receta });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear receta' });
     }
   }
@@ -201,7 +202,7 @@ router.put(
 
       res.json({ success: true, message: 'Receta actualizada', data: receta });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al actualizar receta' });
     }
   }
@@ -230,7 +231,7 @@ router.delete('/:id', requirePermiso('STOCK:ENTRADA'), async (req: Request, res:
 
     res.json({ success: true, message: 'Receta eliminada' });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al eliminar receta' });
   }
 });

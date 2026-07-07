@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma';
 import { handleValidation } from '../middleware/validate';
 import { rateLimitMiddleware } from '../middleware/rateLimit';
 import { clientePublicSelect } from '../lib/selects';
+import { logger } from '../lib/logger';
 
 const portalAuthRateLimit = rateLimitMiddleware({
   keyPrefix: 'portal-auth',
@@ -181,7 +182,7 @@ router.post(
         data: { token: signClienteToken(cliente.id), cliente: publicCliente(cliente) },
       });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear cuenta' });
     }
   }
@@ -222,7 +223,7 @@ router.post(
         data: { token: signClienteToken(cliente.id), cliente: publicCliente(cliente) },
       });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al iniciar sesion' });
     }
   }
@@ -234,7 +235,7 @@ router.get('/me', authenticateCliente, async (req: PortalRequest, res: Response)
     if (!cliente) return;
     res.json({ success: true, data: publicCliente(cliente) });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener perfil' });
   }
 });
@@ -261,7 +262,7 @@ router.put('/me', authenticateCliente, async (req: PortalRequest, res: Response)
 
     res.json({ success: true, message: 'Perfil actualizado', data: publicCliente(updated) });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar perfil' });
   }
 });
@@ -286,7 +287,7 @@ router.get('/menus', async (_req: Request, res: Response): Promise<void> => {
 
     res.json({ success: true, data: menus });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener menus publicados' });
   }
 });
@@ -329,7 +330,7 @@ router.get('/dashboard', authenticateCliente, async (req: PortalRequest, res: Re
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener resumen' });
   }
 });
@@ -347,7 +348,7 @@ router.get('/reservas/mias', authenticateCliente, async (req: PortalRequest, res
     });
     res.json({ success: true, data: reservas });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener reservas' });
   }
 });
@@ -367,7 +368,7 @@ router.get('/reservas', authenticateCliente, async (req: PortalRequest, res: Res
 
     res.json({ success: true, data: reservas });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener reservas' });
   }
 });
@@ -462,7 +463,7 @@ router.post(
               ? 'Nombre y telefono requeridos'
               : 'Error al registrar reserva';
       const status = message === 'Error al registrar reserva' ? 500 : 400;
-      if (status === 500) console.error(error);
+      if (status === 500) logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(status).json({ success: false, message });
     }
   }
@@ -478,7 +479,7 @@ router.get('/ventas', authenticateCliente, async (req: PortalRequest, res: Respo
     });
     res.json({ success: true, data: ventas });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener compras' });
   }
 });
@@ -495,7 +496,7 @@ router.get('/libretas', authenticateCliente, async (req: PortalRequest, res: Res
     });
     res.json({ success: true, data: libretas });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener libreta' });
   }
 });
@@ -514,7 +515,7 @@ router.get('/pagos', authenticateCliente, async (req: PortalRequest, res: Respon
 
     res.json({ success: true, data: { disponibles, usados, pagos } });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener pagos' });
   }
 });
@@ -567,7 +568,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Cuenta creada', data: { token: signClienteToken(cliente.id), cliente: publicCliente(cliente) } });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear cuenta' });
     }
   }
@@ -579,7 +580,7 @@ router.get('/perfil', authenticateCliente, async (req: PortalRequest, res: Respo
     if (!cliente) return;
     res.json({ success: true, data: publicCliente(cliente) });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener perfil' });
   }
 });
@@ -605,7 +606,7 @@ router.put('/perfil', authenticateCliente, async (req: PortalRequest, res: Respo
 
     res.json({ success: true, message: 'Perfil actualizado', data: publicCliente(updated) });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar perfil' });
   }
 });
@@ -636,7 +637,7 @@ router.put(
 
       res.json({ success: true, message: 'Contrasena actualizada' });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al cambiar contrasena' });
     }
   }
@@ -664,7 +665,7 @@ router.get('/facturas', authenticateCliente, async (req: PortalRequest, res: Res
 
     res.json({ success: true, data: facturas });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener facturas' });
   }
 });
@@ -687,7 +688,7 @@ router.get('/facturas/:id/pdf', authenticateCliente, async (req: PortalRequest, 
     // Redirigir a la ruta existente de generación de PDF
     res.redirect(`/api/facturas/${facturaId}/pdf`);
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener factura' });
   }
 });
@@ -701,7 +702,7 @@ router.get('/notificaciones', authenticateCliente, async (req: PortalRequest, re
     });
     res.json({ success: true, data: notificaciones });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener notificaciones' });
   }
 });
@@ -729,7 +730,7 @@ router.get('/notificaciones/preferencias', authenticateCliente, async (req: Port
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener preferencias' });
   }
 });
@@ -752,7 +753,7 @@ router.put('/notificaciones/preferencias', authenticateCliente, async (req: Port
 
     res.json({ success: true, message: 'Preferencias guardadas' });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al guardar preferencias' });
   }
 });

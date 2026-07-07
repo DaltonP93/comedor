@@ -5,6 +5,7 @@ import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
 import { clientePublicSelect } from '../lib/selects';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -48,7 +49,7 @@ router.get('/', requirePermiso('MENUS:VER'), async (req: Request, res: Response)
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener menús' });
   }
 });
@@ -75,7 +76,7 @@ router.get('/:id', requirePermiso('MENUS:VER'), async (req: Request, res: Respon
 
     res.json({ success: true, data: menu });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener menú' });
   }
 });
@@ -125,7 +126,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Menú creado', data: menu });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear menú' });
     }
   }
@@ -173,7 +174,7 @@ router.put('/:id', requirePermiso('MENUS:EDITAR'), async (req: Request, res: Res
 
     res.json({ success: true, message: 'Menú actualizado', data: menu });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar menú' });
   }
 });
@@ -208,7 +209,7 @@ router.post('/:id/publicar', requirePermiso('MENUS:EDITAR'), async (req: Request
 
     res.json({ success: true, message: 'Menú publicado', data: menuPublicado });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al publicar menú' });
   }
 });
@@ -231,7 +232,7 @@ router.post('/:id/cerrar', requirePermiso('MENUS:EDITAR'), async (req: Request, 
 
     res.json({ success: true, message: 'Menú cerrado', data: menuCerrado });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al cerrar menú' });
   }
 });
@@ -252,7 +253,7 @@ router.delete('/:id', requirePermiso('MENUS:ELIMINAR'), async (req: Request, res
     await prisma.menu.delete({ where: { id } });
     res.json({ success: true, message: 'Menú eliminado' });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al eliminar menú' });
   }
 });

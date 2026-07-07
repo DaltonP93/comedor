@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -39,7 +40,7 @@ router.get('/', requirePermiso('AUDITORIA:VER'), async (req: Request, res: Respo
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener auditoría' });
   }
 });

@@ -9,6 +9,7 @@ import { StockService } from '../services/StockService';
 import { LibretaService } from '../services/LibretaService';
 import { AppError } from '../middleware/errorHandler';
 import { clientePublicSelect } from '../lib/selects';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -75,7 +76,7 @@ router.get('/', requirePermiso('VENTAS:VER'), async (req: Request, res: Response
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener ventas' });
   }
 });
@@ -100,7 +101,7 @@ router.get('/:id', requirePermiso('VENTAS:VER'), async (req: Request, res: Respo
     }
     res.json({ success: true, data: venta });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener venta' });
   }
 });
@@ -267,7 +268,7 @@ router.post(
         res.status(error.statusCode).json({ success: false, message: error.message });
         return;
       }
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear venta' });
     }
   }
@@ -299,7 +300,7 @@ router.post('/:id/pagar', requirePermiso('VENTAS:EDITAR'), async (req: Request, 
 
     res.json({ success: true, message: 'Pago registrado', data: pago });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al registrar pago' });
   }
 });
@@ -361,7 +362,7 @@ router.post('/:id/anular', requirePermiso('VENTAS:EDITAR'), async (req: Request,
       res.status(error.statusCode).json({ success: false, message: error.message });
       return;
     }
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al anular venta' });
   }
 });
@@ -471,7 +472,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Venta por kilo creada', data: venta });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear venta por kilo' });
     }
   }
@@ -570,7 +571,7 @@ router.post(
         res.status(error.statusCode).json({ success: false, message: error.message });
         return;
       }
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al cargar a libreta' });
     }
   }

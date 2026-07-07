@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -34,7 +35,7 @@ router.get('/', requirePermiso('USUARIOS:VER'), async (req: Request, res: Respon
     });
     res.json({ success: true, data: usuarios });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener usuarios' });
   }
 });
@@ -61,7 +62,7 @@ router.get('/:id', requirePermiso('USUARIOS:VER'), async (req: Request, res: Res
     }
     res.json({ success: true, data: usuario });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener usuario' });
   }
 });
@@ -110,7 +111,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Usuario creado', data: usuario });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear usuario' });
     }
   }
@@ -134,7 +135,7 @@ router.put('/:id', requirePermiso('USUARIOS:EDITAR'), async (req: Request, res: 
 
     res.json({ success: true, message: 'Usuario actualizado', data: usuario });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar usuario' });
   }
 });
@@ -149,7 +150,7 @@ router.delete('/:id', requirePermiso('USUARIOS:ELIMINAR'), async (req: Request, 
     await prisma.usuario.update({ where: { id }, data: { activo: false } });
     res.json({ success: true, message: 'Usuario desactivado' });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al eliminar usuario' });
   }
 });
