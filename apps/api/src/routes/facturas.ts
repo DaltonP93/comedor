@@ -11,6 +11,7 @@ import { AppError } from '../middleware/errorHandler';
 import { obtenerSiguienteNumero, formatearNumeroFactura } from '../lib/fiscal/SecuenciaService';
 import { SifenProvider } from '../lib/fiscal/SifenProvider';
 import { clientePublicSelect } from '../lib/selects';
+import { toJson } from '../lib/json';
 
 type PrismaTx = Prisma.TransactionClient;
 
@@ -318,7 +319,7 @@ router.post(
             tipo_evento: 'ENVIO_SIFEN',
             estado_anterior: 'PENDIENTE',
             estado_nuevo: sifenResult.estado,
-            respuesta: JSON.parse(JSON.stringify({ cdc: sifenResult.cdc, mensaje: sifenResult.mensaje })),
+            respuesta: toJson({ cdc: sifenResult.cdc, mensaje: sifenResult.mensaje }),
             mensaje: sifenResult.mensaje,
           },
         });
@@ -547,7 +548,7 @@ router.post(
             tipo_evento: 'ANULACION',
             estado_anterior: documentoFiscal.estado,
             estado_nuevo: 'ANULADA',
-            payload: JSON.parse(JSON.stringify({ motivo })),
+            payload: toJson({ motivo }),
             mensaje: motivo,
           },
         });
@@ -638,7 +639,7 @@ router.post(
         tipo_evento: 'REENVIO_SIFEN',
         estado_anterior: documentoFiscal.estado_sifen ?? 'PENDIENTE',
         estado_nuevo: sifenResult.estado,
-        respuesta: JSON.parse(JSON.stringify({ cdc: sifenResult.cdc, mensaje: sifenResult.mensaje })),
+        respuesta: toJson({ cdc: sifenResult.cdc, mensaje: sifenResult.mensaje }),
         mensaje: sifenResult.mensaje,
       },
     });
@@ -747,7 +748,7 @@ router.post(
           documento_fiscal_id: notaCredito.id,
           tipo_evento: 'EMISION_NOTA_CREDITO',
           estado_nuevo: 'EMITIDA_LOCAL',
-          payload: JSON.parse(JSON.stringify({ motivo, original_id: original.id })),
+          payload: toJson({ motivo, original_id: original.id }),
         },
       });
 
@@ -757,7 +758,7 @@ router.post(
           tipo_evento: 'ANULACION',
           estado_anterior: original.estado,
           estado_nuevo: 'ANULADA',
-          payload: JSON.parse(JSON.stringify({ motivo, nota_credito_id: notaCredito.id })),
+          payload: toJson({ motivo, nota_credito_id: notaCredito.id }),
         },
       });
 

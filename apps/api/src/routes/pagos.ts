@@ -10,6 +10,7 @@ import { BancardProvider } from '../lib/payment/BancardProvider';
 import { PagoparProvider } from '../lib/payment/PagoparProvider';
 import type { PaymentProvider } from '../lib/payment/PaymentProvider';
 import { clientePublicSelect } from '../lib/selects';
+import { toJson } from '../lib/json';
 
 const router = Router();
 
@@ -81,7 +82,7 @@ async function reclamarEventoWebhook(
   eventId: string,
   payload: unknown
 ): Promise<{ id: number } | null> {
-  const payloadJson = JSON.parse(JSON.stringify(payload));
+  const payloadJson = toJson(payload);
   try {
     return await prisma.webhookEvento.create({
       data: { proveedor, event_id: eventId, payload: payloadJson, estado: 'EN_PROCESO' },
@@ -150,7 +151,7 @@ router.post('/webhook/bancard', async (req: Request, res: Response): Promise<voi
               where: { id: intento.id },
               data: {
                 estado: 'CONFIRMADO',
-                response_payload: JSON.parse(JSON.stringify(resultado.response_payload ?? {})),
+                response_payload: toJson(resultado.response_payload ?? {}),
               },
             });
             await tx.pago.update({
@@ -260,7 +261,7 @@ router.post('/webhook/pagopar', async (req: Request, res: Response): Promise<voi
               where: { id: intento.id },
               data: {
                 estado: 'CONFIRMADO',
-                response_payload: JSON.parse(JSON.stringify(resultado.response_payload ?? {})),
+                response_payload: toJson(resultado.response_payload ?? {}),
               },
             });
             await tx.pago.update({
