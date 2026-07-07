@@ -568,8 +568,8 @@ router.post(
           estado: 'PENDIENTE',
           referencia_externa: resultado.referencia_externa,
           redirect_url: resultado.redirect_url,
-          request_payload: resultado.request_payload,
-          response_payload: resultado.response_payload,
+          request_payload: toJson(resultado.request_payload),
+          response_payload: toJson(resultado.response_payload),
         },
       });
 
