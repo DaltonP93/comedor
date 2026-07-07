@@ -102,9 +102,10 @@ export const PagoparProvider: PaymentProvider = {
     const monto = body.monto ?? '0';
     const hash = body.hash ?? '';
 
-    // Verificar hash solo en modo real
-    if (!SANDBOX && hash && !verificarHashWebhook(TOKEN_PRIVADO, monto, referencia, hash)) {
-      logger.warn('PagoparProvider hash de webhook inválido', { referencia });
+    // Verificar hash en modo real. La AUSENCIA de hash debe tratarse como fallo
+    // (antes '&& hash' permitía omitir la firma simplemente no enviándola).
+    if (!SANDBOX && (!hash || !verificarHashWebhook(TOKEN_PRIVADO, monto, referencia, hash))) {
+      logger.warn('PagoparProvider hash de webhook ausente o inválido', { referencia });
       return {
         exitoso: false,
         referencia_externa: referencia,

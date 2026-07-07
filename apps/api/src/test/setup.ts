@@ -1,4 +1,10 @@
-import { beforeAll, afterAll, vi } from 'vitest';
+import { afterAll, vi } from 'vitest';
+
+// Secretos de test: deben fijarse a nivel de módulo (antes de importar jwt.ts,
+// que ahora falla si faltan). No pueden ir en beforeAll: corre tras los imports.
+process.env.JWT_SECRET = 'test-secret-key-for-testing-con-longitud-suficiente';
+process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-for-testing-con-longitud';
+process.env.NODE_ENV = 'test';
 
 // Mock Prisma para evitar conexiones reales a DB en tests unitarios
 vi.mock('../lib/prisma', () => ({
@@ -40,12 +46,6 @@ vi.mock('../lib/redis', () => ({
 vi.mock('../middleware/rateLimit', () => ({
   rateLimitMiddleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
-
-beforeAll(() => {
-  process.env.JWT_SECRET = 'test-secret-key-for-testing';
-  process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-for-testing';
-  process.env.NODE_ENV = 'test';
-});
 
 afterAll(() => {
   vi.clearAllMocks();

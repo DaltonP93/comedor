@@ -6,7 +6,18 @@ import { prisma } from '../lib/prisma';
 import { handleValidation } from '../middleware/validate';
 
 const router = Router();
-const PORTAL_JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-in-production';
+function resolvePortalSecret(): string {
+  const value = process.env.PORTAL_JWT_SECRET || process.env.JWT_SECRET;
+  if (!value) {
+    throw new Error(
+      'PORTAL_JWT_SECRET (o en su defecto JWT_SECRET) es obligatorio y no tiene valor por defecto. ' +
+        'Usá un secreto independiente del panel admin para el portal del cliente.'
+    );
+  }
+  return value;
+}
+
+const PORTAL_JWT_SECRET = resolvePortalSecret();
 
 type PortalTokenPayload = {
   clienteId: number;
@@ -106,6 +117,16 @@ router.post(
         },
       });
 
+      // No reclamar cuentas preexistentes: si ya hay un cliente con credenciales,
+      // el registro no debe sobrescribir su contraseña ni sus datos (account takeover).
+      if (existing && existing.password_hash) {
+        res.status(409).json({
+          success: false,
+          message: 'Ya existe una cuenta con ese teléfono o email. Iniciá sesión o recuperá tu contraseña.',
+        });
+        return;
+      }
+
       const cliente = existing
         ? await prisma.cliente.update({
             where: { id: existing.id },
@@ -116,7 +137,7 @@ router.post(
               email: email || existing.email,
               password_hash: passwordHash,
               estado: 'ACTIVO',
-              canal_preferido: 'WHATSAPP',
+              canal_preferido: existing.canal_preferido || 'WHATSAPP',
             },
           })
         : await prisma.cliente.create({
@@ -320,23 +341,15 @@ router.get('/reservas/mias', authenticateCliente, async (req: PortalRequest, res
   }
 });
 
-router.get('/reservas', async (req: Request, res: Response): Promise<void> => {
+// Requiere autenticación: solo devuelve las reservas del cliente autenticado.
+// (Antes era público por ?telefono= y filtraba PII de cualquier cliente.)
+router.get('/reservas', authenticateCliente, async (req: PortalRequest, res: Response): Promise<void> => {
   try {
-    const telefono = String(req.query.telefono || '').trim();
-
-    if (!telefono) {
-      res.status(400).json({ success: false, message: 'Telefono requerido' });
-      return;
-    }
-
     const reservas = await prisma.reserva.findMany({
-      where: {
-        cliente: { OR: [{ telefono }, { whatsapp: telefono }] },
-      },
+      where: { cliente_id: req.cliente!.clienteId },
       orderBy: { creado_en: 'desc' },
       take: 20,
       include: {
-        cliente: { select: { nombre: true, telefono: true, email: true } },
         menu: { include: { sucursal: true, items: { include: { producto: true } } } },
       },
     });
@@ -386,11 +399,10 @@ router.post(
           : await (async () => {
               if (!nombre || !telefono) throw new Error('DATOS_CLIENTE_REQUERIDOS');
               const existing = await tx.cliente.findFirst({ where: { OR: [{ telefono }, { whatsapp: telefono }] } });
+              // En reservas anónimas NO sobrescribir datos de un cliente existente
+              // (evita tampering de PII de terceros). Solo enlazamos la reserva.
               return existing
-                ? tx.cliente.update({
-                    where: { id: existing.id },
-                    data: { nombre, telefono, whatsapp: telefono, email: email || undefined },
-                  })
+                ? existing
                 : tx.cliente.create({
                     data: {
                       nombre,
@@ -416,7 +428,7 @@ router.post(
           },
           include: {
             menu: { include: { sucursal: true, items: { include: { producto: true } } } },
-            cliente: true,
+            cliente: { select: { id: true, nombre: true, telefono: true, email: true } },
           },
         });
 
@@ -516,10 +528,19 @@ router.post(
         },
       });
 
+      // No reclamar cuentas preexistentes con credenciales (account takeover)
+      if (existing && existing.password_hash) {
+        res.status(409).json({
+          success: false,
+          message: 'Ya existe una cuenta con ese teléfono o email. Iniciá sesión o recuperá tu contraseña.',
+        });
+        return;
+      }
+
       const cliente = existing
         ? await prisma.cliente.update({
             where: { id: existing.id },
-            data: { nombre, telefono, whatsapp: telefono, email: email || existing.email, password_hash: passwordHash, estado: 'ACTIVO', canal_preferido: 'WHATSAPP' },
+            data: { nombre, telefono, whatsapp: telefono, email: email || existing.email, password_hash: passwordHash, estado: 'ACTIVO', canal_preferido: existing.canal_preferido || 'WHATSAPP' },
           })
         : await prisma.cliente.create({
             data: { nombre, telefono, whatsapp: telefono, email: email || undefined, password_hash: passwordHash, tipo_cliente: 'INDIVIDUAL', canal_preferido: 'WHATSAPP' },

@@ -165,10 +165,21 @@ router.post(
 router.put('/:id', requirePermiso('LIBRETAS:EDITAR'), async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const data: Record<string, unknown> = { ...req.body };
+    // Allowlist explícita: nunca hacer spread de req.body.
+    // saldo_actual / saldo_vencido son gestionados por el ledger, NO editables por API.
+    const data: Record<string, unknown> = {};
+    if (req.body.tipo !== undefined) data.tipo = req.body.tipo;
+    if (req.body.estado !== undefined) data.estado = req.body.estado;
+    if (req.body.dia_corte !== undefined) data.dia_corte = Number(req.body.dia_corte);
+    if (req.body.dia_vencimiento !== undefined) data.dia_vencimiento = Number(req.body.dia_vencimiento);
+    if (req.body.empresa_id !== undefined) data.empresa_id = req.body.empresa_id;
     if (req.body.limite_credito !== undefined) data.limite_credito = BigInt(req.body.limite_credito);
 
-    const libreta = await prisma.libreta.update({ where: { id }, data, include: { cliente: true } });
+    const libreta = await prisma.libreta.update({
+      where: { id },
+      data,
+      include: { cliente: { select: { id: true, nombre: true, telefono: true, email: true } } },
+    });
     res.json({ success: true, message: 'Libreta actualizada', data: libreta });
   } catch (error) {
     console.error(error);

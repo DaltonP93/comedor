@@ -159,11 +159,22 @@ router.post(
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const { password, ...resto } = req.body;
-      const data = { ...resto };
-      if (password) {
-        data.password_hash = await bcrypt.hash(password, 10);
-      }
+      // Allowlist explícita: evita inyección de password_hash, saldo u otros campos.
+      const b = req.body;
+      const data = {
+        nombre: b.nombre,
+        tipo_cliente: b.tipo_cliente,
+        razon_social: b.razon_social ?? undefined,
+        documento_tipo: b.documento_tipo ?? undefined,
+        documento_numero: b.documento_numero ?? undefined,
+        ruc: b.ruc ?? undefined,
+        telefono: b.telefono ?? undefined,
+        whatsapp: b.whatsapp ?? undefined,
+        email: b.email ?? undefined,
+        direccion: b.direccion ?? undefined,
+        canal_preferido: b.canal_preferido ?? undefined,
+        ...(b.password ? { password_hash: await bcrypt.hash(b.password, 10) } : {}),
+      };
       const cliente = await prisma.cliente.create({ data });
 
       await registrarAuditoria({
@@ -171,7 +182,7 @@ router.post(
         modulo: 'CLIENTES',
         accion: 'CREAR',
         registroId: cliente.id,
-        valorNuevo: req.body,
+        valorNuevo: { ...data, password_hash: data.password_hash ? '***' : undefined },
         ip: req.ip,
       });
 

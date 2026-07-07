@@ -264,6 +264,10 @@ model Reserva {
   sucursal           Sucursal  @relation(fields: [sucursal_id], references: [id])
   venta              Venta?    @relation(fields: [venta_id], references: [id])
 
+  @@index([cliente_id])
+  @@index([menu_id])
+  @@index([sucursal_id])
+  @@index([estado])
   @@map("reservas")
 }
 
@@ -293,6 +297,12 @@ model Venta {
   libreta_movimientos LibretaMovimiento[]
   reserva          Reserva?
 
+  @@index([cliente_id])
+  @@index([sucursal_id])
+  @@index([usuario_id])
+  @@index([caja_id])
+  @@index([estado])
+  @@index([creado_en])
   @@map("ventas")
 }
 
@@ -312,6 +322,8 @@ model VentaItem {
   producto        Producto?      @relation(fields: [producto_id], references: [id])
   concepto        ConceptoVenta? @relation(fields: [concepto_id], references: [id])
 
+  @@index([venta_id])
+  @@index([producto_id])
   @@map("venta_items")
 }
 
@@ -332,6 +344,9 @@ model Libreta {
   movimientos     LibretaMovimiento[]
   pagos           Pago[]
 
+  @@index([cliente_id])
+  @@index([empresa_id])
+  @@index([estado])
   @@map("libretas")
 }
 
@@ -352,6 +367,10 @@ model LibretaMovimiento {
   pago              Pago?     @relation(fields: [pago_id], references: [id])
   usuario           Usuario?  @relation(fields: [usuario_id], references: [id])
 
+  @@index([libreta_id])
+  @@index([venta_id])
+  @@index([pago_id])
+  @@index([fecha_movimiento])
   @@map("libreta_movimientos")
 }
 
@@ -375,6 +394,12 @@ model Pago {
   libreta_movimientos LibretaMovimiento[]
   intentos            PagoIntento[]
 
+  @@index([venta_id])
+  @@index([cliente_id])
+  @@index([libreta_id])
+  @@index([estado])
+  @@index([forma_pago])
+  @@index([fecha_pago])
   @@map("pagos")
 }
 
@@ -395,6 +420,9 @@ model Factura {
   venta        Venta    @relation(fields: [venta_id], references: [id])
   cliente      Cliente? @relation(fields: [cliente_id], references: [id])
 
+  @@index([cliente_id])
+  @@index([estado])
+  @@index([fecha])
   @@map("facturas")
 }
 
@@ -461,6 +489,10 @@ model StockMovimiento {
   sucursal        Sucursal  @relation(fields: [sucursal_id], references: [id])
   usuario         Usuario?  @relation(fields: [usuario_id], references: [id])
 
+  @@index([producto_id])
+  @@index([sucursal_id])
+  @@index([referencia_tipo, referencia_id])
+  @@index([creado_en])
   @@map("stock_movimientos")
 }
 
@@ -497,6 +529,8 @@ model Notificacion {
   creado_en  DateTime  @default(now())
   cliente    Cliente?  @relation(fields: [cliente_id], references: [id])
 
+  @@index([cliente_id])
+  @@index([estado])
   @@map("notificaciones")
 }
 
@@ -512,6 +546,9 @@ model Auditoria {
   creado_en       DateTime  @default(now())
   usuario         Usuario?  @relation(fields: [usuario_id], references: [id])
 
+  @@index([usuario_id])
+  @@index([modulo])
+  @@index([creado_en])
   @@map("auditoria")
 }
 
