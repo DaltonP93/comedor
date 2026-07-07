@@ -256,7 +256,9 @@ router.put('/me', authenticateCliente, async (req: PortalRequest, res: Response)
     const cliente = await getClienteOrFail(req, res);
     if (!cliente) return;
 
-    const { nombre, email, telefono, direccion, documento_numero, ruc, password } = req.body;
+    // Solo datos de contacto. El documento/RUC y la contraseña se gestionan por
+    // flujos dedicados (no editables libremente desde el perfil).
+    const { nombre, email, telefono, direccion } = req.body;
     const updated = await prisma.cliente.update({
       where: { id: cliente.id },
       data: {
@@ -265,9 +267,6 @@ router.put('/me', authenticateCliente, async (req: PortalRequest, res: Response)
         telefono: telefono ?? cliente.telefono,
         whatsapp: telefono ?? cliente.whatsapp,
         direccion: direccion ?? cliente.direccion,
-        documento_numero: documento_numero ?? cliente.documento_numero,
-        ruc: ruc ?? cliente.ruc,
-        password_hash: password ? await bcrypt.hash(password, 10) : cliente.password_hash,
       },
     });
 
@@ -601,7 +600,8 @@ router.put('/perfil', authenticateCliente, async (req: PortalRequest, res: Respo
     const cliente = await getClienteOrFail(req, res);
     if (!cliente) return;
 
-    const { nombre, email, telefono, direccion, documento_numero, ruc } = req.body;
+    // Solo datos de contacto (documento/RUC no editables libremente).
+    const { nombre, email, telefono, direccion } = req.body;
     const updated = await prisma.cliente.update({
       where: { id: cliente.id },
       data: {
@@ -610,8 +610,6 @@ router.put('/perfil', authenticateCliente, async (req: PortalRequest, res: Respo
         telefono: telefono ?? cliente.telefono,
         whatsapp: telefono ?? cliente.whatsapp,
         direccion: direccion ?? cliente.direccion,
-        documento_numero: documento_numero ?? cliente.documento_numero,
-        ruc: ruc ?? cliente.ruc,
       },
     });
 
