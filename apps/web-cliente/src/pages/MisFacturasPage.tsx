@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { facturasClienteApi } from '../api/portal';
+import { facturasClienteApi, type FacturaCliente } from '../api/portal';
 
 const ESTADO_LABEL: Record<string, { label: string; color: string }> = {
   EMITIDA_LOCAL: { label: 'Emitida', color: 'bg-blue-100 text-blue-800' },
@@ -17,14 +17,14 @@ function formatFecha(iso: string) {
 }
 
 export default function MisFacturasPage() {
-  const [facturas, setFacturas] = useState<Array<Record<string, unknown>>>([]);
+  const [facturas, setFacturas] = useState<FacturaCliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [descargando, setDescargando] = useState<number | null>(null);
 
   useEffect(() => {
     facturasClienteApi.listar()
-      .then(res => setFacturas(res.data.data as Array<Record<string, unknown>>))
+      .then(res => setFacturas(res.data.data))
       .catch(() => setError('No se pudieron cargar las facturas.'))
       .finally(() => setLoading(false));
   }, []);
@@ -78,9 +78,9 @@ export default function MisFacturasPage() {
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <p className="font-semibold text-gray-900">
-                      {String(f.numero || f.numero_formateado || `#${f.id}`)}
+                      {String(f.numero || `#${f.id}`)}
                     </p>
-                    <p className="text-xs text-gray-500">{f.fecha ? formatFecha(String(f.fecha)) : formatFecha(String(f.creado_en || ''))}</p>
+                    <p className="text-xs text-gray-500">{f.fecha ? formatFecha(String(f.fecha)) : ''}</p>
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${estado.color}`}>
                     {estado.label}

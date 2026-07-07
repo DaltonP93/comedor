@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { notificacionesClienteApi, type PreferenciasNotificaciones } from '../api/portal';
+import { notificacionesClienteApi, type PreferenciasNotificaciones, type Notificacion } from '../api/portal';
 
 const DEFAULT_PREFS: PreferenciasNotificaciones = {
   canal_whatsapp: false,
@@ -37,7 +37,7 @@ function Toggle({ checked, onChange, label, description }: {
 
 export default function NotificacionesPage() {
   const [prefs, setPrefs] = useState<PreferenciasNotificaciones>(DEFAULT_PREFS);
-  const [notifs, setNotifs] = useState<Array<Record<string, unknown>>>([]);
+  const [notifs, setNotifs] = useState<Notificacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
