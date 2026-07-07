@@ -1,26 +1,32 @@
 version: '3.9'
+
+# Compose de desarrollo local. Los secretos se toman de variables de entorno
+# (ver .env / .env.example). Los valores por defecto son SOLO para desarrollo:
+# en producción usá docker-compose.prod.yml con secretos fuertes.
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: comedor
-      POSTGRES_USER: comedor
-      POSTGRES_PASSWORD: comedor123
+      POSTGRES_DB: ${POSTGRES_DB:-comedor}
+      POSTGRES_USER: ${POSTGRES_USER:-comedor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-comedor_dev_only}
     ports:
-      - "5432:5432"
+      # Bind solo a localhost: no exponer la base fuera del host.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U comedor"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-comedor}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-redis_dev_only}"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
   api:
     build:
@@ -29,13 +35,14 @@ services:
     ports:
       - "3001:3001"
     environment:
-      DATABASE_URL: postgresql://comedor:comedor123@postgres:5432/comedor
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: change-this-secret-in-production
-      JWT_REFRESH_SECRET: change-this-refresh-secret
+      DATABASE_URL: postgresql://${POSTGRES_USER:-comedor}:${POSTGRES_PASSWORD:-comedor_dev_only}@postgres:5432/${POSTGRES_DB:-comedor}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_dev_only}@redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET es obligatorio}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET es obligatorio}
+      PORTAL_JWT_SECRET: ${PORTAL_JWT_SECRET:-}
       PORT: 3001
       NODE_ENV: production
-      CORS_ORIGIN: http://localhost:3000,http://localhost,http://127.0.0.1
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost,http://127.0.0.1}
     depends_on:
       postgres:
         condition: service_healthy

@@ -36,6 +36,8 @@ model RolPermiso {
 
   @@id([rol_id, permiso_id])
   @@map("rol_permisos")
+  @@index([rol_id])
+  @@index([permiso_id])
 }
 
 model Sucursal {
@@ -81,6 +83,8 @@ model Usuario {
   sesiones             UserSession[]
 
   @@map("usuarios")
+  @@index([rol_id])
+  @@index([sucursal_id])
 }
 
 model Caja {
@@ -94,6 +98,7 @@ model Caja {
   aperturas   CajaApertura[]
 
   @@map("cajas")
+  @@index([sucursal_id])
 }
 
 model Cliente {
@@ -150,6 +155,8 @@ model ClienteEmpresa {
 
   @@id([cliente_id, empresa_id])
   @@map("cliente_empresas")
+  @@index([cliente_id])
+  @@index([empresa_id])
 }
 
 model CategoriaProducto {
@@ -189,6 +196,7 @@ model Producto {
   stock_actual      StockActual[]
 
   @@map("productos")
+  @@index([categoria_id])
 }
 
 model ConceptoVenta {
@@ -231,6 +239,7 @@ model Menu {
   reservas            Reserva[]
 
   @@map("menus")
+  @@index([sucursal_id])
 }
 
 model MenuItem {
@@ -243,6 +252,8 @@ model MenuItem {
   producto    Producto? @relation(fields: [producto_id], references: [id])
 
   @@map("menu_items")
+  @@index([menu_id])
+  @@index([producto_id])
 }
 
 model Reserva {
@@ -455,6 +466,8 @@ model Compra {
   items          CompraItem[]
 
   @@map("compras")
+  @@index([proveedor_id])
+  @@index([usuario_id])
 }
 
 model CompraItem {
@@ -470,6 +483,8 @@ model CompraItem {
   producto       Producto @relation(fields: [producto_id], references: [id])
 
   @@map("compra_items")
+  @@index([compra_id])
+  @@index([producto_id])
 }
 
 model StockMovimiento {
@@ -505,6 +520,7 @@ model Receta {
   items       RecetaItem[]
 
   @@map("recetas")
+  @@index([producto_id])
 }
 
 model RecetaItem {
@@ -517,6 +533,8 @@ model RecetaItem {
   insumo     Producto @relation(fields: [insumo_id], references: [id])
 
   @@map("receta_items")
+  @@index([receta_id])
+  @@index([insumo_id])
 }
 
 model Notificacion {
@@ -571,6 +589,7 @@ model Deposito {
   stock       StockActual[]
 
   @@map("depositos")
+  @@index([sucursal_id])
 }
 
 model StockActual {
@@ -588,6 +607,9 @@ model StockActual {
 
   @@unique([producto_id, sucursal_id, deposito_id])
   @@map("stock_actual")
+  @@index([producto_id])
+  @@index([sucursal_id])
+  @@index([deposito_id])
 }
 
 model CajaApertura {
@@ -611,6 +633,10 @@ model CajaApertura {
   movimientos  CajaMovimiento[]
 
   @@map("caja_aperturas")
+  @@index([caja_id])
+  @@index([usuario_id])
+  @@index([sucursal_id])
+  @@index([usuario_cierre_id])
 }
 
 model CajaMovimiento {
@@ -629,6 +655,10 @@ model CajaMovimiento {
   usuario   Usuario?     @relation(fields: [usuario_id], references: [id])
 
   @@map("caja_movimientos")
+  @@index([apertura_id])
+  @@index([venta_id])
+  @@index([pago_id])
+  @@index([usuario_id])
 }
 
 model DocumentoFiscal {
@@ -667,6 +697,8 @@ model DocumentoFiscal {
 
   @@unique([establecimiento, punto_expedicion, tipo_documento, numero])
   @@map("documentos_fiscales")
+  @@index([cliente_id])
+  @@index([documento_relacionado_id])
 }
 
 model DocumentoFiscalEvento {
@@ -683,6 +715,7 @@ model DocumentoFiscalEvento {
   documento DocumentoFiscal @relation(fields: [documento_fiscal_id], references: [id])
 
   @@map("documento_fiscal_eventos")
+  @@index([documento_fiscal_id])
 }
 
 model SecuenciaFiscal {
@@ -713,6 +746,7 @@ model PagoIntento {
   pago Pago @relation(fields: [pago_id], references: [id])
 
   @@map("pago_intentos")
+  @@index([pago_id])
 }
 
 model WebhookEvento {
@@ -744,6 +778,7 @@ model UserSession {
   usuario Usuario @relation(fields: [usuario_id], references: [id])
 
   @@map("user_sessions")
+  @@index([usuario_id])
 }
 
 model NotificacionPlantilla {
@@ -773,4 +808,5 @@ model ClienteConsentimiento {
   cliente Cliente @relation(fields: [cliente_id], references: [id])
 
   @@map("cliente_consentimientos")
+  @@index([cliente_id])
 }
