@@ -5,7 +5,7 @@
 **Metodología:** análisis multi-rol (Ciberseguridad, Base de Datos, Arquitectura, Desarrollo) con verificación adversarial.
 **Rama:** `claude/setup-project-readme-7HOyV`
 
-> **Estado:** los 36 hallazgos fueron **remediados** salvo 2 mejoras deliberadamente diferidas (documentadas al final con su justificación). Cada hallazgo cita `archivo:línea`.
+> **Estado:** los 36 hallazgos fueron **remediados al 100%**, incluidas las 4 mejoras mayores inicialmente diferidas (migraciones/constraints, extracción a servicios, `noImplicitAny`, tipado de JSON). Cada hallazgo cita `archivo:línea`.
 
 ---
 
@@ -13,14 +13,15 @@
 
 El sistema era funcionalmente completo pero tenía **vulnerabilidades críticas** en el portal público del cliente y en el flujo de pagos, además de **cero índices de base de datos**. Tras la auditoría se corrigieron **todos los hallazgos de seguridad**, se **indexó toda la base**, se mejoró la observabilidad y se agregaron pruebas.
 
-| Rol | Hallazgos | Corregidos | Diferidos (con justificación) |
-|-----|-----------|------------|-------------------------------|
+| Rol | Hallazgos | Corregidos | Diferidos |
+|-----|-----------|------------|-----------|
 | Ciberseguridad | 22 | 22 | 0 |
-| Base de Datos | 5 | 4 | 1 (constraints de estado → SQL provisto) |
-| Arquitectura | 6 | 5 | 1 (extracción a servicios → refactor mayor) |
-| Desarrollo | 5 | 3 | 2 (noImplicitAny, tipado JSON) |
+| Base de Datos | 5 | 5 | 0 |
+| Arquitectura | 6 | 6 | 0 |
+| Desarrollo | 5 | 5 | 0 |
 
-Tests: **40 pasando** (eran 27). Build API + web-admin: OK. Lint: OK.
+Tests: **45 pasando** (eran 27). Build API + web-admin + web-cliente: OK. Lint: OK.
+`noImplicitAny` activo. Migraciones Prisma verificadas end-to-end contra PostgreSQL 16.
 
 ---
 
@@ -87,14 +88,18 @@ Tests: **40 pasando** (eran 27). Build API + web-admin: OK. Lint: OK.
 
 ---
 
-## Elementos diferidos (con justificación)
+## Cierre de las 4 mejoras mayores (antes diferidas)
 
-Estos 4 puntos NO son vulnerabilidades ni bugs; son mejoras de mayor alcance cuyo riesgo/beneficio aconseja hacerlas en su propio PR:
+Todas completadas y verificadas:
 
-1. **D5 — CHECK constraints**: SQL provisto (`constraints.sql`), aplicar por migración.
-2. **A1 — Extracción a servicios**: refactor arquitectónico; requiere tests de regresión primero.
-3. **V3 — `noImplicitAny`**: reactivación gradual por carpeta para no romper el build.
-4. **V4 — Tipado de JSON de Prisma**: cosmético, sin impacto funcional.
+1. **D5 — CHECK constraints**: incluidas en la migración `00000000000001_check_constraints` (se aplican solas con `migrate deploy`). Verificado: rechazan estados inválidos y montos negativos.
+2. **A1 — Extracción a servicios**: `services/PaymentService.ts` centraliza la lógica de pagos/webhooks; `pagos.ts` pasó de 935 → 683 líneas. +5 tests.
+3. **V3 — `noImplicitAny`**: activado en `apps/api/tsconfig.json`; build y tests verdes.
+4. **V4 — Tipado de JSON de Prisma**: helper `lib/json.ts` (`toJson` → `Prisma.InputJsonValue`) reemplaza las 10 ocurrencias del idioma crudo.
+
+### Fix crítico de despliegue
+
+Se detectó que `api-entrypoint.sh` aborta en producción sin migraciones y **no existía ninguna** → el sistema no podía desplegarse. Se creó la migración inicial completa (`00000000000000_init`: 42 tablas, 73 índices, `token_version`, FKs) más la de constraints. **Verificado end-to-end** contra PostgreSQL 16: `migrate deploy` + `seed` OK.
 
 ---
 
