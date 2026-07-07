@@ -32,14 +32,15 @@ const PORTAL_JWT_SECRET = resolvePortalSecret();
 type PortalTokenPayload = {
   clienteId: number;
   tipo: 'CLIENTE';
+  tv: number; // token_version: permite revocar todas las sesiones del cliente
 };
 
 type PortalRequest = Request & {
   cliente?: PortalTokenPayload;
 };
 
-function signClienteToken(clienteId: number): string {
-  return jwt.sign({ clienteId, tipo: 'CLIENTE' }, PORTAL_JWT_SECRET, { expiresIn: '7d' });
+function signClienteToken(clienteId: number, tokenVersion: number): string {
+  return jwt.sign({ clienteId, tipo: 'CLIENTE', tv: tokenVersion }, PORTAL_JWT_SECRET, { expiresIn: '7d' });
 }
 
 function publicCliente(cliente: {
@@ -74,7 +75,7 @@ function publicCliente(cliente: {
   };
 }
 
-function authenticateCliente(req: PortalRequest, res: Response, next: NextFunction): void {
+async function authenticateCliente(req: PortalRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
 
@@ -87,6 +88,16 @@ function authenticateCliente(req: PortalRequest, res: Response, next: NextFuncti
     const decoded = jwt.verify(token, PORTAL_JWT_SECRET) as PortalTokenPayload;
     if (decoded.tipo !== 'CLIENTE' || !decoded.clienteId) {
       res.status(401).json({ success: false, message: 'Sesion invalida' });
+      return;
+    }
+    // Revocación: el token_version del token debe coincidir con el de la DB.
+    // Al cambiar la contraseña se incrementa token_version e invalida sesiones previas.
+    const cliente = await prisma.cliente.findUnique({
+      where: { id: decoded.clienteId },
+      select: { token_version: true, estado: true },
+    });
+    if (!cliente || cliente.estado !== 'ACTIVO' || (decoded.tv ?? 0) !== cliente.token_version) {
+      res.status(401).json({ success: false, message: 'Sesion revocada o invalida' });
       return;
     }
     req.cliente = decoded;
@@ -179,7 +190,7 @@ router.post(
       res.status(201).json({
         success: true,
         message: 'Cuenta creada',
-        data: { token: signClienteToken(cliente.id), cliente: publicCliente(cliente) },
+        data: { token: signClienteToken(cliente.id, cliente.token_version), cliente: publicCliente(cliente) },
       });
     } catch (error) {
       logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
@@ -220,7 +231,7 @@ router.post(
       res.json({
         success: true,
         message: 'Login exitoso',
-        data: { token: signClienteToken(cliente.id), cliente: publicCliente(cliente) },
+        data: { token: signClienteToken(cliente.id, cliente.token_version), cliente: publicCliente(cliente) },
       });
     } catch (error) {
       logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
@@ -566,7 +577,7 @@ router.post(
         });
       }
 
-      res.status(201).json({ success: true, message: 'Cuenta creada', data: { token: signClienteToken(cliente.id), cliente: publicCliente(cliente) } });
+      res.status(201).json({ success: true, message: 'Cuenta creada', data: { token: signClienteToken(cliente.id, cliente.token_version), cliente: publicCliente(cliente) } });
     } catch (error) {
       logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear cuenta' });
@@ -616,7 +627,7 @@ router.put(
   authenticateCliente,
   [
     body('password_actual').notEmpty().withMessage('Contrasena actual requerida'),
-    body('password_nueva').isLength({ min: 6 }).withMessage('Nueva contrasena debe tener al menos 6 caracteres'),
+    body('password_nueva').isLength({ min: 8 }).withMessage('Nueva contrasena debe tener al menos 8 caracteres'),
     handleValidation,
   ],
   async (req: PortalRequest, res: Response): Promise<void> => {
@@ -630,12 +641,18 @@ router.put(
         return;
       }
 
-      await prisma.cliente.update({
+      // Incrementar token_version invalida todas las sesiones previas.
+      const actualizado = await prisma.cliente.update({
         where: { id: cliente.id },
-        data: { password_hash: await bcrypt.hash(password_nueva, 10) },
+        data: { password_hash: await bcrypt.hash(password_nueva, 10), token_version: { increment: 1 } },
       });
 
-      res.json({ success: true, message: 'Contrasena actualizada' });
+      // Emitir un token nuevo para la sesión actual (las demás quedan revocadas).
+      res.json({
+        success: true,
+        message: 'Contrasena actualizada',
+        data: { token: signClienteToken(actualizado.id, actualizado.token_version) },
+      });
     } catch (error) {
       logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al cambiar contrasena' });

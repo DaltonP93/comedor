@@ -114,6 +114,7 @@ model Cliente {
   email                  String?   @db.VarChar(150)
   direccion              String?   @db.VarChar(255)
   password_hash          String?   @db.VarChar(255)
+  token_version          Int       @default(0)
   permite_notificaciones Boolean   @default(true)
   canal_preferido        String?   @db.VarChar(20)
   estado                 String    @default("ACTIVO") @db.VarChar(20)
