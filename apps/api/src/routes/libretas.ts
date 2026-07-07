@@ -404,4 +404,45 @@ router.get('/:id/estado-cuenta/pdf', requirePermiso('LIBRETAS:VER'), async (req:
   }
 });
 
+// GET /libretas/:id/verificar-saldo
+// Reconciliación (solo lectura): compara el saldo_actual almacenado con el
+// recalculado desde el ledger inmutable (Σ debe − Σ haber). Detecta divergencias
+// sin mutar datos. La corrección debe hacerse con revisión manual.
+router.get('/:id/verificar-saldo', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const libreta = await prisma.libreta.findUnique({ where: { id } });
+    if (!libreta) {
+      res.status(404).json({ success: false, message: 'Libreta no encontrada' });
+      return;
+    }
+
+    const agg = await prisma.libretaMovimiento.aggregate({
+      where: { libreta_id: id },
+      _sum: { monto_debe: true, monto_haber: true },
+    });
+    const totalDebe = agg._sum.monto_debe ?? BigInt(0);
+    const totalHaber = agg._sum.monto_haber ?? BigInt(0);
+    const saldoCalculado = totalDebe - totalHaber;
+    const saldoAlmacenado = libreta.saldo_actual;
+    const diferencia = saldoAlmacenado - saldoCalculado;
+
+    res.json({
+      success: true,
+      data: {
+        libreta_id: id,
+        saldo_almacenado: saldoAlmacenado.toString(),
+        saldo_calculado: saldoCalculado.toString(),
+        diferencia: diferencia.toString(),
+        consistente: diferencia === BigInt(0),
+        total_debe: totalDebe.toString(),
+        total_haber: totalHaber.toString(),
+      },
+    });
+  } catch (error) {
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ success: false, message: 'Error al verificar saldo' });
+  }
+});
+
 export default router;
