@@ -47,16 +47,19 @@ import ConciliacionPage from './pages/pagos/ConciliacionPage';
 import PagosManualesPage from './pages/pagos/PagosManualesPage';
 import FacturasPage from './pages/facturas/FacturasPage';
 import ConfiguracionTributaria from './pages/configuracion/ConfiguracionTributaria';
-
-// New pages
 import { ProveedoresPage } from './pages/proveedores/ProveedoresPage';
 import { ComprasPage } from './pages/compras/ComprasPage';
 import { NuevaCompra } from './pages/compras/NuevaCompra';
-import { EmpresasPage } from './pages/empresas/EmpresasPage';
-import { RecetasPage } from './pages/recetas/RecetasPage';
 import { RolesPage } from './pages/roles/RolesPage';
 import { SucursalesPage } from './pages/sucursales/SucursalesPage';
 import { CajasPage } from './pages/cajas/CajasPage';
+import CajaAperturaPage from './pages/cajas/CajaAperturaPage';
+import { StockActualPage } from './pages/stock/StockActualPage';
+import { InventarioPage } from './pages/stock/InventarioPage';
+import { MermasPage } from './pages/stock/MermasPage';
+import { PagosPage } from './pages/pagos/PagosPage';
+import { FacturaDetalle } from './pages/facturas/FacturaDetalle';
+import { LibretaCobroPage } from './pages/libretas/LibretaCobroPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -105,8 +108,8 @@ function AppRoutes() {
         <Route path="/menus" element={<MenusPage />} />
         <Route path="/menus/portal" element={<PortalModulosPage />} />
         <Route path="/menus/nuevo" element={<MenuForm />} />
-        <Route path="/menus/:id(\\d+)/editar" element={<MenuForm />} />
-        <Route path="/menus/:id(\\d+)" element={<MenuDetalle />} />
+        <Route path="/menus/:id/editar" element={<MenuForm />} />
+        <Route path="/menus/:id" element={<MenuDetalle />} />
 
         {/* Reservas */}
         <Route path="/reservas" element={<ReservasPage />} />
@@ -120,11 +123,15 @@ function AppRoutes() {
         {/* Libretas */}
         <Route path="/libretas" element={<LibretasPage />} />
         <Route path="/libretas/:id" element={<LibretaDetalle />} />
+        <Route path="/libretas/:id/cobrar" element={<LibretaCobroPage />} />
 
         {/* Stock */}
         <Route path="/stock" element={<StockPage />} />
         <Route path="/stock/entrada" element={<EntradaMercaderia />} />
         <Route path="/stock/kardex/:productoId" element={<KardexPage />} />
+        <Route path="/stock/actual" element={<StockActualPage />} />
+        <Route path="/stock/inventario" element={<InventarioPage />} />
+        <Route path="/stock/mermas" element={<MermasPage />} />
 
         {/* Recetas */}
         <Route path="/recetas" element={<RecetasPage />} />
@@ -151,11 +158,13 @@ function AppRoutes() {
         <Route path="/notificaciones" element={<NotificacionesPage />} />
 
         {/* Pagos */}
+        <Route path="/pagos" element={<PagosPage />} />
         <Route path="/pagos/conciliacion" element={<ConciliacionPage />} />
         <Route path="/pagos/manuales" element={<PagosManualesPage />} />
 
         {/* Facturación */}
         <Route path="/facturas" element={<FacturasPage />} />
+        <Route path="/facturas/:id" element={<FacturaDetalle />} />
         <Route path="/configuracion/tributaria" element={<ConfiguracionTributaria />} />
 
         {/* Proveedores */}
@@ -165,17 +174,12 @@ function AppRoutes() {
         <Route path="/compras" element={<ComprasPage />} />
         <Route path="/compras/nueva" element={<NuevaCompra />} />
 
-        {/* Empresas */}
-        <Route path="/empresas" element={<EmpresasPage />} />
-
-        {/* Recetas */}
-        <Route path="/recetas" element={<RecetasPage />} />
-
         {/* Admin */}
         <Route path="/usuarios" element={<UsuariosPage />} />
         <Route path="/roles" element={<RolesPage />} />
         <Route path="/sucursales" element={<SucursalesPage />} />
         <Route path="/cajas" element={<CajasPage />} />
+        <Route path="/cajas/:id/apertura" element={<CajaAperturaPage />} />
         <Route path="/auditoria" element={<AuditoriaPage />} />
         <Route path="/integraciones" element={<IntegracionesPage />} />
         <Route path="/configuracion" element={<ConfiguracionPage />} />

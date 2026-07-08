@@ -4,9 +4,18 @@ import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
+import { calcularTotalesVenta } from '../lib/calculos';
+import { StockService } from '../services/StockService';
+import { LibretaService } from '../services/LibretaService';
+import { AppError } from '../middleware/errorHandler';
+import { clientePublicSelect } from '../lib/selects';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
+
+const stockService = new StockService(prisma);
+const libretaService = new LibretaService(prisma);
 
 interface VentaItem {
   producto_id?: number;
@@ -16,6 +25,14 @@ interface VentaItem {
   unidad_medida?: string;
   precio_unitario: number;
   iva_porcentaje?: number;
+  descuento_item?: number;
+}
+
+interface EntradaPago {
+  forma_pago: string;
+  monto: number;
+  voucher?: string;
+  autorizacion?: string;
 }
 
 // GET /ventas
@@ -44,7 +61,7 @@ router.get('/', requirePermiso('VENTAS:VER'), async (req: Request, res: Response
         take: limitNum,
         orderBy: { creado_en: 'desc' },
         include: {
-          cliente: true,
+          cliente: { select: clientePublicSelect },
           usuario: { select: { nombre: true, apellido: true } },
           sucursal: true,
           _count: { select: { items: true } },
@@ -59,7 +76,7 @@ router.get('/', requirePermiso('VENTAS:VER'), async (req: Request, res: Response
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener ventas' });
   }
 });
@@ -71,7 +88,7 @@ router.get('/:id', requirePermiso('VENTAS:VER'), async (req: Request, res: Respo
       where: { id: parseInt(req.params.id) },
       include: {
         items: { include: { producto: true, concepto: true } },
-        cliente: true,
+        cliente: { select: clientePublicSelect },
         usuario: { select: { nombre: true, apellido: true } },
         sucursal: true,
         pagos: true,
@@ -84,7 +101,7 @@ router.get('/:id', requirePermiso('VENTAS:VER'), async (req: Request, res: Respo
     }
     res.json({ success: true, data: venta });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener venta' });
   }
 });
@@ -109,53 +126,67 @@ router.post(
         descuento = 0,
         items,
         forma_pago,
+        pagos: pagosEntrada,
       } = req.body;
 
-      // Calculate totals
-      let subtotal = BigInt(0);
-      let ivaTotal = BigInt(0);
+      // Validar pagos mixtos si se proveen
+      const tienePagosArray = Array.isArray(pagosEntrada) && pagosEntrada.length > 0;
+
+      // Calcular totales con helper
+      const itemsCalculo = (items as VentaItem[]).map((item) => ({
+        precio_unitario: item.precio_unitario,
+        cantidad: item.cantidad,
+        iva_porcentaje: (item.iva_porcentaje ?? 10) as 0 | 5 | 10,
+        descuento_item: item.descuento_item,
+      }));
+
+      const totales = calcularTotalesVenta(itemsCalculo, descuento);
 
       const itemsCalculados = (items as VentaItem[]).map((item) => {
-        const cantidad = Number(item.cantidad);
-        const precioUnitario = BigInt(item.precio_unitario);
-        const ivaPct = Number(item.iva_porcentaje ?? 10);
-        const itemSubtotal = precioUnitario * BigInt(Math.round(cantidad * 1000)) / BigInt(1000);
-        const ivaItem = (itemSubtotal * BigInt(ivaPct)) / BigInt(100 + ivaPct);
-
-        subtotal += itemSubtotal;
-        ivaTotal += ivaItem;
-
+        const precio = BigInt(Math.round(Number(item.precio_unitario)));
+        const cant = BigInt(Math.round(item.cantidad * 1000));
+        const itemTotal = (precio * cant) / BigInt(1000);
+        const descItem = BigInt(Math.round(Number(item.descuento_item ?? 0)));
+        const neto = itemTotal - descItem;
         return {
           producto_id: item.producto_id || undefined,
           concepto_id: item.concepto_id || undefined,
           descripcion: item.descripcion,
           cantidad: item.cantidad,
           unidad_medida: item.unidad_medida || 'UNIDAD',
-          precio_unitario: precioUnitario,
-          iva_porcentaje: ivaPct,
-          subtotal: itemSubtotal,
-          total: itemSubtotal,
+          precio_unitario: precio,
+          iva_porcentaje: item.iva_porcentaje ?? 10,
+          subtotal: neto,
+          total: neto,
         };
       });
 
-      const descuentoBigInt = BigInt(descuento);
-      const total = subtotal - descuentoBigInt;
       const esCreditoLibreta = condicion_pago === 'CREDITO' || forma_pago === 'LIBRETA';
 
-      // Check libreta if needed
-      if (esCreditoLibreta && cliente_id) {
-        const libreta = await prisma.libreta.findFirst({
-          where: { cliente_id, estado: 'ACTIVA' },
-        });
-        if (!libreta) {
-          res.status(400).json({ success: false, message: 'El cliente no tiene libreta activa' });
-          return;
-        }
-        if (libreta.saldo_actual + total > libreta.limite_credito) {
-          res.status(400).json({ success: false, message: 'Límite de crédito excedido' });
+      // Validar pagos mixtos: suma debe igualar el total
+      if (tienePagosArray && !esCreditoLibreta) {
+        const sumaPagos = (pagosEntrada as EntradaPago[]).reduce((s, p) => s + Number(p.monto), 0);
+        if (Math.abs(sumaPagos - Number(totales.total)) > 1) {
+          res.status(400).json({ success: false, message: `La suma de pagos (${sumaPagos}) no coincide con el total (${totales.total})` });
           return;
         }
       }
+
+      // Validar crédito en libreta antes de la transacción
+      if (esCreditoLibreta && cliente_id) {
+        try {
+          await libretaService.validarCredito(cliente_id, totales.total);
+        } catch (err) {
+          if (err instanceof AppError) {
+            res.status(err.statusCode).json({ success: false, message: err.message });
+            return;
+          }
+          throw err;
+        }
+      }
+
+      // Validar stock antes de la transacción
+      await stockService.validarDisponibilidad(items as VentaItem[], sucursal_id);
 
       const venta = await prisma.$transaction(async (tx) => {
         const v = await tx.venta.create({
@@ -167,95 +198,57 @@ router.post(
             tipo_venta,
             estado: 'COMPLETADA',
             condicion_pago: esCreditoLibreta ? 'CREDITO' : 'CONTADO',
-            subtotal,
-            descuento: descuentoBigInt,
-            iva_total: ivaTotal,
-            total,
+            subtotal: totales.subtotal,
+            descuento: totales.descuento,
+            iva_total: totales.iva_total,
+            total: totales.total,
             cargada_libreta: esCreditoLibreta,
             items: { create: itemsCalculados },
           },
           include: { items: true },
         });
 
-        // Create stock movements for items that affect stock
-        for (const item of items as VentaItem[]) {
-          if (item.producto_id) {
-            const producto = await tx.producto.findUnique({ where: { id: item.producto_id } });
-            if (producto?.controla_stock) {
-              await tx.stockMovimiento.create({
-                data: {
-                  producto_id: item.producto_id,
-                  sucursal_id,
-                  tipo_movimiento: 'SALIDA',
-                  referencia_tipo: 'VENTA',
-                  referencia_id: v.id,
-                  cantidad: -Math.abs(Number(item.cantidad)),
-                  usuario_id: req.user!.userId,
-                },
-              });
-            }
+        // Descontar stock usando el servicio
+        await stockService.descontarPorVenta(tx, v.id, items as VentaItem[], sucursal_id, req.user!.userId);
 
-            // Deduct ingredients via recipe if exists
-            const receta = await tx.receta.findFirst({
-              where: { producto_id: item.producto_id, activo: true },
-              include: { items: true },
-            });
-            if (receta) {
-              for (const recetaItem of receta.items) {
-                await tx.stockMovimiento.create({
-                  data: {
-                    producto_id: recetaItem.insumo_id,
-                    sucursal_id,
-                    tipo_movimiento: 'SALIDA',
-                    referencia_tipo: 'RECETA_VENTA',
-                    referencia_id: v.id,
-                    cantidad: -(Number(recetaItem.cantidad) * Number(item.cantidad)),
-                    observacion: `Consumo por receta: ${receta.nombre}`,
-                    usuario_id: req.user!.userId,
-                  },
-                });
-              }
-            }
-          }
-        }
-
-        // Handle libreta
+        // Manejar libreta usando el servicio
         if (esCreditoLibreta && cliente_id) {
           const libreta = await tx.libreta.findFirst({
             where: { cliente_id, estado: 'ACTIVA' },
           });
           if (libreta) {
-            const nuevoSaldo = libreta.saldo_actual + total;
-            await tx.libreta.update({
-              where: { id: libreta.id },
-              data: { saldo_actual: nuevoSaldo },
-            });
-            await tx.libretaMovimiento.create({
-              data: {
-                libreta_id: libreta.id,
-                venta_id: v.id,
-                tipo_movimiento: 'CARGO',
-                descripcion: 'Cargo por venta',
-                monto_debe: total,
-                monto_haber: BigInt(0),
-                saldo_resultante: nuevoSaldo,
-                usuario_id: req.user!.userId,
-              },
-            });
+            await libretaService.cargarConsumo(tx, libreta.id, v.id, totales.total, req.user!.userId);
           }
         }
 
-        // Create payment if contado
+        // Crear pagos si es contado
         if (!esCreditoLibreta) {
-          await tx.pago.create({
-            data: {
-              venta_id: v.id,
-              cliente_id: cliente_id || undefined,
-              forma_pago: forma_pago || 'EFECTIVO',
-              monto: total,
-              estado: 'CONFIRMADO',
-            },
-          });
+          if (tienePagosArray) {
+            // Pagos mixtos: uno por entrada
+            for (const entrada of pagosEntrada as EntradaPago[]) {
+              await tx.pago.create({
+                data: {
+                  venta_id: v.id,
+                  cliente_id: cliente_id || undefined,
+                  forma_pago: entrada.forma_pago,
+                  monto: BigInt(Math.round(Number(entrada.monto))),
+                  estado: 'CONFIRMADO',
+                  voucher: entrada.voucher,
+                  autorizacion: entrada.autorizacion,
+                },
+              });
+            }
+          } else {
+            await tx.pago.create({
+              data: {
+                venta_id: v.id,
+                cliente_id: cliente_id || undefined,
+                forma_pago: forma_pago || 'EFECTIVO',
+                monto: totales.total,
+                estado: 'CONFIRMADO',
+              },
+            });
+          }
         }
 
         return v;
@@ -271,7 +264,11 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Venta creada', data: venta });
     } catch (error) {
-      console.error(error);
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ success: false, message: error.message });
+        return;
+      }
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear venta' });
     }
   }
@@ -303,7 +300,7 @@ router.post('/:id/pagar', requirePermiso('VENTAS:EDITAR'), async (req: Request, 
 
     res.json({ success: true, message: 'Pago registrado', data: pago });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al registrar pago' });
   }
 });
@@ -313,6 +310,11 @@ router.post('/:id/anular', requirePermiso('VENTAS:EDITAR'), async (req: Request,
   try {
     const id = parseInt(req.params.id);
     const { motivo } = req.body;
+
+    if (!motivo || String(motivo).trim() === '') {
+      res.status(400).json({ success: false, message: 'El motivo de anulación es requerido' });
+      return;
+    }
 
     const venta = await prisma.venta.findUnique({
       where: { id },
@@ -329,72 +331,18 @@ router.post('/:id/anular', requirePermiso('VENTAS:EDITAR'), async (req: Request,
     }
 
     await prisma.$transaction(async (tx) => {
-      // Anular venta
       await tx.venta.update({ where: { id }, data: { estado: 'ANULADA' } });
 
-      // Reverse direct stock movements
-      const stockMovs = await tx.stockMovimiento.findMany({
-        where: { referencia_tipo: 'VENTA', referencia_id: id },
-      });
+      // Revertir stock usando el servicio
+      await stockService.revertirPorAnulacion(tx, id, venta.sucursal_id, req.user!.userId);
 
-      for (const mov of stockMovs) {
-        await tx.stockMovimiento.create({
-          data: {
-            producto_id: mov.producto_id,
-            sucursal_id: mov.sucursal_id,
-            tipo_movimiento: 'AJUSTE',
-            referencia_tipo: 'ANULACION_VENTA',
-            referencia_id: id,
-            cantidad: -Number(mov.cantidad), // reverse
-            observacion: `Anulación de venta #${id}. ${motivo || ''}`,
-            usuario_id: req.user!.userId,
-          },
-        });
-      }
-
-      // Reverse recipe-based stock movements
-      const recetaMovs = await tx.stockMovimiento.findMany({
-        where: { referencia_tipo: 'RECETA_VENTA', referencia_id: id },
-      });
-
-      for (const mov of recetaMovs) {
-        await tx.stockMovimiento.create({
-          data: {
-            producto_id: mov.producto_id,
-            sucursal_id: mov.sucursal_id,
-            tipo_movimiento: 'AJUSTE',
-            referencia_tipo: 'ANULACION_RECETA',
-            referencia_id: id,
-            cantidad: -Number(mov.cantidad), // reverse
-            observacion: `Anulación receta de venta #${id}. ${motivo || ''}`,
-            usuario_id: req.user!.userId,
-          },
-        });
-      }
-
-      // Reverse libreta if applicable
+      // Revertir libreta si aplica usando el servicio
       if (venta.cargada_libreta && venta.cliente_id) {
         const libreta = await tx.libreta.findFirst({
-          where: { cliente_id: venta.cliente_id, estado: 'ACTIVA' },
+          where: { cliente_id: venta.cliente_id, estado: { in: ['ACTIVA', 'BLOQUEADA'] } },
         });
         if (libreta) {
-          const nuevoSaldo = libreta.saldo_actual - venta.total;
-          await tx.libreta.update({
-            where: { id: libreta.id },
-            data: { saldo_actual: nuevoSaldo < BigInt(0) ? BigInt(0) : nuevoSaldo },
-          });
-          await tx.libretaMovimiento.create({
-            data: {
-              libreta_id: libreta.id,
-              venta_id: id,
-              tipo_movimiento: 'ABONO',
-              descripcion: `Anulación de venta #${id}`,
-              monto_debe: BigInt(0),
-              monto_haber: venta.total,
-              saldo_resultante: nuevoSaldo < BigInt(0) ? BigInt(0) : nuevoSaldo,
-              usuario_id: req.user!.userId,
-            },
-          });
+          await libretaService.revertirCargo(tx, libreta.id, id, venta.total, req.user!.userId);
         }
       }
     });
@@ -410,7 +358,11 @@ router.post('/:id/anular', requirePermiso('VENTAS:EDITAR'), async (req: Request,
 
     res.json({ success: true, message: 'Venta anulada' });
   } catch (error) {
-    console.error(error);
+    if (error instanceof AppError) {
+      res.status(error.statusCode).json({ success: false, message: error.message });
+      return;
+    }
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al anular venta' });
   }
 });
@@ -483,7 +435,7 @@ router.post(
           });
         }
 
-        // Deduct ingredients via recipe if exists
+        // Descontar ingredientes por receta si existe
         const recetaKilo = await tx.receta.findFirst({
           where: { producto_id, activo: true },
           include: { items: true },
@@ -520,7 +472,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Venta por kilo creada', data: venta });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear venta por kilo' });
     }
   }
@@ -540,37 +492,45 @@ router.post(
     try {
       const { cliente_id, sucursal_id, caja_id, items, descuento = 0 } = req.body;
 
-      const libreta = await prisma.libreta.findFirst({
-        where: { cliente_id, estado: 'ACTIVA' },
-      });
-      if (!libreta) {
-        res.status(400).json({ success: false, message: 'El cliente no tiene libreta activa' });
-        return;
+      // Validar crédito con el servicio
+      const itemsCalculo = (items as VentaItem[]).map((item) => ({
+        precio_unitario: item.precio_unitario,
+        cantidad: item.cantidad,
+        iva_porcentaje: (item.iva_porcentaje ?? 10) as 0 | 5 | 10,
+        descuento_item: item.descuento_item,
+      }));
+      const totales = calcularTotalesVenta(itemsCalculo, descuento);
+
+      try {
+        await libretaService.validarCredito(cliente_id, totales.total);
+      } catch (err) {
+        if (err instanceof AppError) {
+          res.status(err.statusCode).json({ success: false, message: err.message });
+          return;
+        }
+        throw err;
       }
 
-      let total = BigInt(0);
+      // Validar stock
+      await stockService.validarDisponibilidad(items as VentaItem[], sucursal_id);
+
       const itemsCalculados = (items as VentaItem[]).map((item) => {
-        const itemTotal = BigInt(item.precio_unitario) * BigInt(Math.round(Number(item.cantidad) * 1000)) / BigInt(1000);
-        total += itemTotal;
+        const precio = BigInt(Math.round(Number(item.precio_unitario)));
+        const cant = BigInt(Math.round(item.cantidad * 1000));
+        const itemTotal = (precio * cant) / BigInt(1000);
+        const descItem = BigInt(Math.round(Number(item.descuento_item ?? 0)));
+        const neto = itemTotal - descItem;
         return {
           producto_id: item.producto_id || undefined,
           descripcion: item.descripcion,
           cantidad: item.cantidad,
           unidad_medida: item.unidad_medida || 'UNIDAD',
-          precio_unitario: BigInt(item.precio_unitario),
+          precio_unitario: precio,
           iva_porcentaje: item.iva_porcentaje ?? 10,
-          subtotal: itemTotal,
-          total: itemTotal,
+          subtotal: neto,
+          total: neto,
         };
       });
-
-      const descuentoBigInt = BigInt(descuento);
-      total -= descuentoBigInt;
-
-      if (libreta.saldo_actual + total > libreta.limite_credito) {
-        res.status(400).json({ success: false, message: 'Límite de crédito excedido' });
-        return;
-      }
 
       const venta = await prisma.$transaction(async (tx) => {
         const v = await tx.venta.create({
@@ -582,81 +542,36 @@ router.post(
             tipo_venta: 'LIBRETA',
             estado: 'COMPLETADA',
             condicion_pago: 'CREDITO',
-            subtotal: total,
-            descuento: descuentoBigInt,
-            iva_total: BigInt(0),
-            total,
+            subtotal: totales.subtotal,
+            descuento: totales.descuento,
+            iva_total: totales.iva_total,
+            total: totales.total,
             cargada_libreta: true,
             items: { create: itemsCalculados },
           },
         });
 
-        // Stock movements and recipe deductions for libreta items
-        for (const item of items as VentaItem[]) {
-          if (item.producto_id) {
-            const producto = await tx.producto.findUnique({ where: { id: item.producto_id } });
-            if (producto?.controla_stock) {
-              await tx.stockMovimiento.create({
-                data: {
-                  producto_id: item.producto_id,
-                  sucursal_id,
-                  tipo_movimiento: 'SALIDA',
-                  referencia_tipo: 'VENTA',
-                  referencia_id: v.id,
-                  cantidad: -Math.abs(Number(item.cantidad)),
-                  usuario_id: req.user!.userId,
-                },
-              });
-            }
+        // Descontar stock usando el servicio
+        await stockService.descontarPorVenta(tx, v.id, items as VentaItem[], sucursal_id, req.user!.userId);
 
-            // Deduct ingredients via recipe if exists
-            const recetaLibreta = await tx.receta.findFirst({
-              where: { producto_id: item.producto_id, activo: true },
-              include: { items: true },
-            });
-            if (recetaLibreta) {
-              for (const recetaItem of recetaLibreta.items) {
-                await tx.stockMovimiento.create({
-                  data: {
-                    producto_id: recetaItem.insumo_id,
-                    sucursal_id,
-                    tipo_movimiento: 'SALIDA',
-                    referencia_tipo: 'RECETA_VENTA',
-                    referencia_id: v.id,
-                    cantidad: -(Number(recetaItem.cantidad) * Number(item.cantidad)),
-                    observacion: `Consumo por receta: ${recetaLibreta.nombre}`,
-                    usuario_id: req.user!.userId,
-                  },
-                });
-              }
-            }
-          }
+        // Cargar en libreta usando el servicio
+        const libreta = await tx.libreta.findFirst({
+          where: { cliente_id, estado: 'ACTIVA' },
+        });
+        if (libreta) {
+          await libretaService.cargarConsumo(tx, libreta.id, v.id, totales.total, req.user!.userId);
         }
-
-        const nuevoSaldo = libreta.saldo_actual + total;
-        await tx.libreta.update({
-          where: { id: libreta.id },
-          data: { saldo_actual: nuevoSaldo },
-        });
-        await tx.libretaMovimiento.create({
-          data: {
-            libreta_id: libreta.id,
-            venta_id: v.id,
-            tipo_movimiento: 'CARGO',
-            descripcion: 'Cargo a libreta',
-            monto_debe: total,
-            monto_haber: BigInt(0),
-            saldo_resultante: nuevoSaldo,
-            usuario_id: req.user!.userId,
-          },
-        });
 
         return v;
       });
 
       res.status(201).json({ success: true, message: 'Carga a libreta exitosa', data: venta });
     } catch (error) {
-      console.error(error);
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ success: false, message: error.message });
+        return;
+      }
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al cargar a libreta' });
     }
   }

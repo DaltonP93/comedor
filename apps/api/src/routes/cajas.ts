@@ -3,6 +3,8 @@ import { body } from 'express-validator';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
+import { pick } from '../lib/pick';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -21,7 +23,7 @@ router.get('/', requirePermiso('CAJAS:VER'), async (req: Request, res: Response)
     });
     res.json({ success: true, data: cajas });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener cajas' });
   }
 });
@@ -38,7 +40,7 @@ router.get('/:id', requirePermiso('CAJAS:VER'), async (req: Request, res: Respon
     }
     res.json({ success: true, data: caja });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener caja' });
   }
 });
@@ -53,10 +55,10 @@ router.post(
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const caja = await prisma.caja.create({ data: req.body, include: { sucursal: true } });
+      const caja = await prisma.caja.create({ data: pick(req.body, ['nombre', 'sucursal_id', 'estado', 'activo']), include: { sucursal: true } });
       res.status(201).json({ success: true, message: 'Caja creada', data: caja });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear caja' });
     }
   }
@@ -65,10 +67,10 @@ router.post(
 router.put('/:id', requirePermiso('CAJAS:EDITAR'), async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const caja = await prisma.caja.update({ where: { id }, data: req.body, include: { sucursal: true } });
+    const caja = await prisma.caja.update({ where: { id }, data: pick(req.body, ['nombre', 'sucursal_id', 'estado', 'activo']), include: { sucursal: true } });
     res.json({ success: true, message: 'Caja actualizada', data: caja });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar caja' });
   }
 });
@@ -89,7 +91,7 @@ router.post('/:id/abrir', requirePermiso('CAJAS:EDITAR'), async (req: Request, r
     const updated = await prisma.caja.update({ where: { id }, data: { estado: 'ABIERTA' } });
     res.json({ success: true, message: 'Caja abierta', data: updated });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al abrir caja' });
   }
 });
@@ -110,7 +112,7 @@ router.post('/:id/cerrar', requirePermiso('CAJAS:EDITAR'), async (req: Request, 
     const updated = await prisma.caja.update({ where: { id }, data: { estado: 'CERRADA' } });
     res.json({ success: true, message: 'Caja cerrada', data: updated });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al cerrar caja' });
   }
 });
@@ -121,7 +123,7 @@ router.delete('/:id', requirePermiso('CAJAS:ELIMINAR'), async (req: Request, res
     await prisma.caja.update({ where: { id }, data: { activo: false } });
     res.json({ success: true, message: 'Caja desactivada' });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al eliminar caja' });
   }
 });

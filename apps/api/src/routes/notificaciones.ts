@@ -3,6 +3,7 @@ import { body } from 'express-validator';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -42,7 +43,7 @@ router.get('/', requirePermiso('CLIENTES:VER'), async (req: Request, res: Respon
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener notificaciones' });
   }
 });
@@ -67,7 +68,7 @@ router.get('/:id', requirePermiso('CLIENTES:VER'), async (req: Request, res: Res
 
     res.json({ success: true, data: notificacion });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener notificación' });
   }
 });
@@ -102,7 +103,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Notificación creada', data: notificacion });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear notificación' });
     }
   }
@@ -131,7 +132,7 @@ router.put('/:id/marcar-enviada', requirePermiso('CLIENTES:EDITAR'), async (req:
 
     res.json({ success: true, message: 'Notificación marcada como enviada', data: actualizada });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar notificación' });
   }
 });
@@ -150,7 +151,7 @@ router.post('/envio-masivo', requirePermiso('CLIENTES:EDITAR'), async (req: Requ
       },
       include: {
         cliente: {
-          select: { id: true, nombre: true, canal_preferido: true, saldo_vencido: true },
+          select: { id: true, nombre: true, canal_preferido: true },
         },
       },
     });
@@ -180,7 +181,7 @@ router.post('/envio-masivo', requirePermiso('CLIENTES:EDITAR'), async (req: Requ
       data: { creadas: notificaciones.length },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al crear notificaciones masivas' });
   }
 });
@@ -205,7 +206,7 @@ router.delete('/:id', requirePermiso('CLIENTES:EDITAR'), async (req: Request, re
 
     res.json({ success: true, message: 'Notificación eliminada' });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al eliminar notificación' });
   }
 });

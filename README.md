@@ -9,6 +9,41 @@
 
 ---
 
+## 🚀 Instalación rápida (un comando)
+
+**Con Docker (recomendado — instala y levanta todo):**
+
+```bash
+npm run setup      # o:  make setup
+```
+
+Genera `.env` con secretos fuertes, construye y levanta postgres, redis, API,
+panel admin, portal del cliente y nginx, aplica las migraciones y carga el seed.
+
+| Servicio | URL |
+|----------|-----|
+| Panel admin | http://localhost:3000 |
+| Portal del cliente | http://localhost:3002 |
+| API / health | http://localhost:3001/health |
+
+Las credenciales del admin quedan en `.env` (`ADMIN_EMAIL` / `ADMIN_PASSWORD`).
+
+**Sin Docker (Postgres/Redis propios):**
+
+```bash
+npm run setup:local   # instala, migra y seedea
+npm run dev           # API + panel admin
+npm run dev:cliente   # portal del cliente
+```
+
+**Comandos útiles** (`make help`): `make up`, `make down`, `make logs`, `make seed`, `make migrate`, `npm test`, `npm run typecheck`, `npm run lint`.
+
+> Producción: definir en el entorno `JWT_SECRET`, `JWT_REFRESH_SECRET`, `PORTAL_JWT_SECRET`,
+> `POSTGRES_PASSWORD`, `REDIS_PASSWORD` y `ADMIN_PASSWORD`. La API no arranca sin los
+> secretos JWT (medida de seguridad).
+
+---
+
 ## 1. Resumen ejecutivo
 
 El sistema propuesto permite administrar integralmente un comedor: carga de mercaderías, recetas, costos, publicación de menús, reservas de comidas, ventas inmediatas, ventas por kilo, facturación, cuentas corrientes mensuales tipo **libreta**, pagos digitales, pagos con POS físico, notificaciones a clientes y reportes administrativos.

@@ -99,7 +99,7 @@ export function VentaDetalle() {
               <p className="text-xs text-gray-500">Nombre</p>
               <p className="text-sm font-medium">{String(cliente.nombre)}</p>
             </div>
-            {cliente.documento_numero && (
+            {cliente.documento_numero != null && (
               <div>
                 <p className="text-xs text-gray-500">Documento</p>
                 <p className="text-sm font-medium">{String(cliente.documento_numero)}</p>
@@ -210,7 +210,7 @@ export function VentaDetalle() {
               <p className="text-xs text-gray-500">Estado</p>
               <p className="text-sm font-medium">{String(factura.estado ?? '-')}</p>
             </div>
-            {factura.cdc && (
+            {factura.cdc != null && (
               <div>
                 <p className="text-xs text-gray-500">CDC</p>
                 <p className="text-sm font-medium break-all">{String(factura.cdc)}</p>

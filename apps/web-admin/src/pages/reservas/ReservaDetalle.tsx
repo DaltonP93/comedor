@@ -161,7 +161,7 @@ export function ReservaDetalle() {
             </Button>
           </div>
           <div className="flex gap-3 mt-4">
-            {!Boolean(reserva.venta_id) && (
+            {!reserva.venta_id && (
               <Button variant="success" onClick={() => setShowVentaModal(true)}>
                 Convertir en venta
               </Button>

@@ -5,6 +5,8 @@ import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
 import { generarPDFEstadoCuenta } from '../lib/pdf';
+import { clientePublicSelect } from '../lib/selects';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -27,7 +29,7 @@ router.get('/', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Respon
         skip,
         take: limitNum,
         orderBy: { creado_en: 'desc' },
-        include: { cliente: true, empresa: true },
+        include: { cliente: { select: clientePublicSelect }, empresa: true },
       }),
       prisma.libreta.count({ where }),
     ]);
@@ -38,7 +40,7 @@ router.get('/', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Respon
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener libretas' });
   }
 });
@@ -48,7 +50,7 @@ router.get('/:id', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Res
   try {
     let libreta = await prisma.libreta.findUnique({
       where: { id: parseInt(req.params.id) },
-      include: { cliente: true, empresa: true },
+      include: { cliente: { select: clientePublicSelect }, empresa: true },
     });
     if (!libreta) {
       res.status(404).json({ success: false, message: 'Libreta no encontrada' });
@@ -63,7 +65,7 @@ router.get('/:id', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Res
         libreta = await prisma.libreta.update({
           where: { id: libreta.id },
           data: { estado: 'BLOQUEADA', saldo_vencido: libreta.saldo_actual },
-          include: { cliente: true, empresa: true },
+          include: { cliente: { select: clientePublicSelect }, empresa: true },
         });
         bloqueada_automaticamente = true;
 
@@ -80,7 +82,7 @@ router.get('/:id', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Res
 
     res.json({ success: true, data: { ...libreta, bloqueada_automaticamente } });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener libreta' });
   }
 });
@@ -111,7 +113,7 @@ router.get('/:id/movimientos', requirePermiso('LIBRETAS:VER'), async (req: Reque
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener movimientos' });
   }
 });
@@ -150,12 +152,12 @@ router.post(
           dia_vencimiento,
           estado: 'ACTIVA',
         },
-        include: { cliente: true },
+        include: { cliente: { select: clientePublicSelect } },
       });
 
       res.status(201).json({ success: true, message: 'Libreta creada', data: libreta });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear libreta' });
     }
   }
@@ -165,13 +167,24 @@ router.post(
 router.put('/:id', requirePermiso('LIBRETAS:EDITAR'), async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const data: Record<string, unknown> = { ...req.body };
+    // Allowlist explícita: nunca hacer spread de req.body.
+    // saldo_actual / saldo_vencido son gestionados por el ledger, NO editables por API.
+    const data: Record<string, unknown> = {};
+    if (req.body.tipo !== undefined) data.tipo = req.body.tipo;
+    if (req.body.estado !== undefined) data.estado = req.body.estado;
+    if (req.body.dia_corte !== undefined) data.dia_corte = Number(req.body.dia_corte);
+    if (req.body.dia_vencimiento !== undefined) data.dia_vencimiento = Number(req.body.dia_vencimiento);
+    if (req.body.empresa_id !== undefined) data.empresa_id = req.body.empresa_id;
     if (req.body.limite_credito !== undefined) data.limite_credito = BigInt(req.body.limite_credito);
 
-    const libreta = await prisma.libreta.update({ where: { id }, data, include: { cliente: true } });
+    const libreta = await prisma.libreta.update({
+      where: { id },
+      data,
+      include: { cliente: { select: { id: true, nombre: true, telefono: true, email: true } } },
+    });
     res.json({ success: true, message: 'Libreta actualizada', data: libreta });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar libreta' });
   }
 });
@@ -192,7 +205,7 @@ router.post(
 
       const libreta = await prisma.libreta.findUnique({
         where: { id },
-        include: { cliente: true },
+        include: { cliente: { select: clientePublicSelect } },
       });
       if (!libreta) {
         res.status(404).json({ success: false, message: 'Libreta no encontrada' });
@@ -264,7 +277,7 @@ router.post(
         data: result,
       });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al registrar pago' });
     }
   }
@@ -324,7 +337,7 @@ router.post(
 
       res.json({ success: true, message: 'Ajuste registrado' });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al registrar ajuste' });
     }
   }
@@ -337,7 +350,7 @@ router.get('/:id/estado-cuenta/pdf', requirePermiso('LIBRETAS:VER'), async (req:
 
     const libreta = await prisma.libreta.findUnique({
       where: { id },
-      include: { cliente: true },
+      include: { cliente: { select: clientePublicSelect } },
     });
     if (!libreta) {
       res.status(404).json({ success: false, message: 'Libreta no encontrada' });
@@ -386,8 +399,49 @@ router.get('/:id/estado-cuenta/pdf', requirePermiso('LIBRETAS:VER'), async (req:
     res.setHeader('Content-Disposition', `attachment; filename="estado-cuenta-${id}.pdf"`);
     res.send(buffer);
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al generar PDF' });
+  }
+});
+
+// GET /libretas/:id/verificar-saldo
+// Reconciliación (solo lectura): compara el saldo_actual almacenado con el
+// recalculado desde el ledger inmutable (Σ debe − Σ haber). Detecta divergencias
+// sin mutar datos. La corrección debe hacerse con revisión manual.
+router.get('/:id/verificar-saldo', requirePermiso('LIBRETAS:VER'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id);
+    const libreta = await prisma.libreta.findUnique({ where: { id } });
+    if (!libreta) {
+      res.status(404).json({ success: false, message: 'Libreta no encontrada' });
+      return;
+    }
+
+    const agg = await prisma.libretaMovimiento.aggregate({
+      where: { libreta_id: id },
+      _sum: { monto_debe: true, monto_haber: true },
+    });
+    const totalDebe = agg._sum.monto_debe ?? BigInt(0);
+    const totalHaber = agg._sum.monto_haber ?? BigInt(0);
+    const saldoCalculado = totalDebe - totalHaber;
+    const saldoAlmacenado = libreta.saldo_actual;
+    const diferencia = saldoAlmacenado - saldoCalculado;
+
+    res.json({
+      success: true,
+      data: {
+        libreta_id: id,
+        saldo_almacenado: saldoAlmacenado.toString(),
+        saldo_calculado: saldoCalculado.toString(),
+        diferencia: diferencia.toString(),
+        consistente: diferencia === BigInt(0),
+        total_debe: totalDebe.toString(),
+        total_haber: totalHaber.toString(),
+      },
+    });
+  } catch (error) {
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ success: false, message: 'Error al verificar saldo' });
   }
 });
 

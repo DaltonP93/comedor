@@ -1,7 +1,18 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-in-production';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret';
+function requireSecret(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `${name} es obligatorio y no tiene valor por defecto. ` +
+        'Definilo en el entorno con al menos 32 caracteres aleatorios e independientes entre sí.'
+    );
+  }
+  return value;
+}
+
+const JWT_SECRET = requireSecret('JWT_SECRET');
+const JWT_REFRESH_SECRET = requireSecret('JWT_REFRESH_SECRET');
 const JWT_EXPIRATION = '8h';
 const REFRESH_EXPIRATION = '7d';
 

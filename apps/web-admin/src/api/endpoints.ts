@@ -239,7 +239,24 @@ export const facturasApi = {
   listar: (params?: Record<string, unknown>) => apiClient.get('/facturas', { params }),
   obtener: (id: number) => apiClient.get(`/facturas/${id}`),
   crear: (data: Record<string, unknown>) => apiClient.post('/facturas', data),
-  anular: (id: number) => apiClient.post(`/facturas/${id}/anular`),
+  anular: (id: number, motivo: string) => apiClient.post(`/facturas/${id}/anular`, { motivo }),
+  notaCredito: (id: number, motivo: string) => apiClient.post(`/facturas/${id}/nota-credito`, { motivo }),
   reenviarSifen: (id: number) => apiClient.post(`/facturas/${id}/reenviar-sifen`),
   pdf: (id: number) => apiClient.get(`/facturas/${id}/pdf`, { responseType: 'blob' }),
+};
+
+// Caja
+export const cajaApi = {
+  estado: (cajaId: number) => apiClient.get(`/caja/${cajaId}/estado`),
+  abrir: (cajaId: number, data: Record<string, unknown>) => apiClient.post(`/caja/${cajaId}/abrir`, data),
+  cerrar: (aperturaId: number, data: Record<string, unknown>) => apiClient.post(`/caja/aperturas/${aperturaId}/cerrar`, data),
+  retiro: (aperturaId: number, data: Record<string, unknown>) => apiClient.post(`/caja/aperturas/${aperturaId}/retiro`, data),
+  resumen: (aperturaId: number) => apiClient.get(`/caja/aperturas/${aperturaId}/resumen`),
+  listarAperturas: (params?: Record<string, unknown>) => apiClient.get('/caja/aperturas', { params }),
+};
+
+// Stock actual
+export const stockActualApi = {
+  listar: (params?: Record<string, unknown>) => apiClient.get('/stock/actual', { params }).catch(() => apiClient.get('/stock', { params })),
+  ajuste: (data: Record<string, unknown>) => apiClient.post('/stock/ajuste', data),
 };

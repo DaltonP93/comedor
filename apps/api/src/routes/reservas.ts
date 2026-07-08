@@ -4,6 +4,9 @@ import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
 import { registrarAuditoria } from '../lib/audit';
+import { AppError } from '../middleware/errorHandler';
+import { clientePublicSelect } from '../lib/selects';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -34,7 +37,7 @@ router.get('/', requirePermiso('RESERVAS:VER'), async (req: Request, res: Respon
         take: limitNum,
         orderBy: { creado_en: 'desc' },
         include: {
-          cliente: true,
+          cliente: { select: clientePublicSelect },
           menu: true,
           sucursal: true,
         },
@@ -48,7 +51,7 @@ router.get('/', requirePermiso('RESERVAS:VER'), async (req: Request, res: Respon
       meta: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener reservas' });
   }
 });
@@ -58,7 +61,7 @@ router.get('/:id', requirePermiso('RESERVAS:VER'), async (req: Request, res: Res
   try {
     const reserva = await prisma.reserva.findUnique({
       where: { id: parseInt(req.params.id) },
-      include: { cliente: true, menu: { include: { items: true } }, sucursal: true, venta: true },
+      include: { cliente: { select: clientePublicSelect }, menu: { include: { items: true } }, sucursal: true, venta: true },
     });
     if (!reserva) {
       res.status(404).json({ success: false, message: 'Reserva no encontrada' });
@@ -66,7 +69,7 @@ router.get('/:id', requirePermiso('RESERVAS:VER'), async (req: Request, res: Res
     }
     res.json({ success: true, data: reserva });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener reserva' });
   }
 });
@@ -102,22 +105,23 @@ router.post(
         return;
       }
 
-      // Check cupo
-      if (menu.cupo_total !== null) {
-        const cupoDisponible = menu.cupo_total - menu.cupo_reservado;
-        if (cantidad > cupoDisponible) {
-          res.status(400).json({
-            success: false,
-            message: `Cupo insuficiente. Disponible: ${cupoDisponible}`,
-          });
-          return;
-        }
-      }
-
       // Calculate total
       const total = BigInt(menu.precio) * BigInt(cantidad);
 
       const reserva = await prisma.$transaction(async (tx) => {
+        // Actualización atómica de cupo con bloqueo a nivel de fila
+        const result = await tx.$queryRaw<Array<{ id: number }>>`
+          UPDATE menus
+          SET cupo_reservado = cupo_reservado + ${cantidad}
+          WHERE id = ${menu_id}
+            AND estado = 'PUBLICADO'
+            AND (cupo_total IS NULL OR cupo_reservado + ${cantidad} <= cupo_total)
+          RETURNING id
+        `;
+        if (!result || result.length === 0) {
+          throw new AppError(409, 'MENU_SIN_CUPO', 'No hay cupo disponible para este menú');
+        }
+
         const r = await tx.reserva.create({
           data: {
             cliente_id,
@@ -130,13 +134,7 @@ router.post(
             estado: 'CONFIRMADA',
             total,
           },
-          include: { cliente: true, menu: true },
-        });
-
-        // Update cupo
-        await tx.menu.update({
-          where: { id: menu_id },
-          data: { cupo_reservado: { increment: cantidad } },
+          include: { cliente: { select: clientePublicSelect }, menu: true },
         });
 
         return r;
@@ -152,7 +150,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Reserva creada', data: reserva });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear reserva' });
     }
   }
@@ -173,12 +171,12 @@ router.put('/:id/estado', requirePermiso('RESERVAS:EDITAR'), async (req: Request
     const reserva = await prisma.reserva.update({
       where: { id },
       data: { estado },
-      include: { cliente: true, menu: true },
+      include: { cliente: { select: clientePublicSelect }, menu: true },
     });
 
     res.json({ success: true, message: 'Estado actualizado', data: reserva });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar estado' });
   }
 });
@@ -204,12 +202,13 @@ router.post('/:id/cancelar', requirePermiso('RESERVAS:EDITAR'), async (req: Requ
         data: { estado: 'CANCELADA' },
       });
 
-      // Release cupo
+      // Liberar cupo atómicamente (solo si el menú tiene cupo reservado)
       if (reserva.menu) {
-        await tx.menu.update({
-          where: { id: reserva.menu_id },
-          data: { cupo_reservado: { decrement: reserva.cantidad } },
-        });
+        await tx.$queryRaw`
+          UPDATE menus
+          SET cupo_reservado = GREATEST(0, cupo_reservado - ${reserva.cantidad})
+          WHERE id = ${reserva.menu_id}
+        `;
       }
 
       return r;
@@ -217,7 +216,7 @@ router.post('/:id/cancelar', requirePermiso('RESERVAS:EDITAR'), async (req: Requ
 
     res.json({ success: true, message: 'Reserva cancelada', data: result });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al cancelar reserva' });
   }
 });
@@ -348,7 +347,7 @@ router.post(
 
       res.status(201).json({ success: true, message: 'Venta creada desde reserva', data: venta });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al convertir reserva en venta' });
     }
   }

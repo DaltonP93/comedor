@@ -3,6 +3,8 @@ import { body } from 'express-validator';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
+import { pick } from '../lib/pick';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -19,7 +21,7 @@ router.get('/', requirePermiso('SUCURSALES:VER'), async (req: Request, res: Resp
     });
     res.json({ success: true, data: sucursales });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener sucursales' });
   }
 });
@@ -36,7 +38,7 @@ router.get('/:id', requirePermiso('SUCURSALES:VER'), async (req: Request, res: R
     }
     res.json({ success: true, data: sucursal });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener sucursal' });
   }
 });
@@ -47,10 +49,10 @@ router.post(
   [body('nombre').notEmpty().withMessage('Nombre requerido'), handleValidation],
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const sucursal = await prisma.sucursal.create({ data: req.body });
+      const sucursal = await prisma.sucursal.create({ data: pick(req.body, ['nombre', 'direccion', 'telefono', 'activo']) });
       res.status(201).json({ success: true, message: 'Sucursal creada', data: sucursal });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear sucursal' });
     }
   }
@@ -59,10 +61,10 @@ router.post(
 router.put('/:id', requirePermiso('SUCURSALES:EDITAR'), async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const sucursal = await prisma.sucursal.update({ where: { id }, data: req.body });
+    const sucursal = await prisma.sucursal.update({ where: { id }, data: pick(req.body, ['nombre', 'direccion', 'telefono', 'activo']) });
     res.json({ success: true, message: 'Sucursal actualizada', data: sucursal });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar sucursal' });
   }
 });
@@ -73,7 +75,7 @@ router.delete('/:id', requirePermiso('SUCURSALES:ELIMINAR'), async (req: Request
     await prisma.sucursal.update({ where: { id }, data: { activo: false } });
     res.json({ success: true, message: 'Sucursal desactivada' });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al eliminar sucursal' });
   }
 });

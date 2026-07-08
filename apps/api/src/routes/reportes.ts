@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
+import { clientePublicSelect } from '../lib/selects';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -61,7 +63,7 @@ router.get('/dashboard', requirePermiso('DASHBOARD:VER'), async (req: Request, r
         where: { creado_en: { gte: hoy, lt: manana }, estado: { not: 'ANULADA' } },
         orderBy: { creado_en: 'desc' },
         take: 10,
-        include: { cliente: true, usuario: { select: { nombre: true } } },
+        include: { cliente: { select: clientePublicSelect }, usuario: { select: { nombre: true } } },
       }),
       prisma.menu.count({ where: { fecha: { gte: hoy, lt: manana } } }),
       prisma.menu.count({ where: { fecha: { gte: hoy, lt: manana }, estado: 'PUBLICADO' } }),
@@ -137,7 +139,7 @@ router.get('/dashboard', requirePermiso('DASHBOARD:VER'), async (req: Request, r
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener dashboard' });
   }
 });
@@ -186,7 +188,7 @@ router.get('/ventas', requirePermiso('REPORTES:VER'), async (req: Request, res: 
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al generar reporte de ventas' });
   }
 });
@@ -240,7 +242,7 @@ router.get('/stock', requirePermiso('REPORTES:VER'), async (req: Request, res: R
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al generar reporte de stock' });
   }
 });
@@ -256,7 +258,7 @@ router.get('/libreta', requirePermiso('REPORTES:VER'), async (req: Request, res:
 
     const libretas = await prisma.libreta.findMany({
       where,
-      include: { cliente: true, empresa: true },
+      include: { cliente: { select: clientePublicSelect }, empresa: true },
       orderBy: { saldo_actual: 'desc' },
     });
 
@@ -278,7 +280,7 @@ router.get('/libreta', requirePermiso('REPORTES:VER'), async (req: Request, res:
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al generar reporte de libretas' });
   }
 });
@@ -304,14 +306,14 @@ router.get('/cocina', requirePermiso('COCINA:VER'), async (req: Request, res: Re
         items: { include: { producto: true } },
         reservas: {
           where: { estado: { in: ['CONFIRMADA', 'EN_COCINA', 'PREPARADA'] } },
-          include: { cliente: true },
+          include: { cliente: { select: clientePublicSelect } },
         },
       },
     });
 
     res.json({ success: true, data: menus });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener reporte de cocina' });
   }
 });
@@ -438,7 +440,7 @@ router.get('/prediccion', requirePermiso('REPORTES:VER'), async (req: Request, r
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al calcular predicción de demanda' });
   }
 });
@@ -480,7 +482,7 @@ router.get('/rentabilidad', requirePermiso('REPORTES:VER'), async (req: Request,
       select: { id: true, nombre: true, costo_promedio: true },
     });
 
-    const productosMap = new Map(productos.map((p) => [p.id, p]));
+    const productosMap = new Map<number, { id: number; nombre: string; costo_promedio: bigint | null }>(productos.map((p) => [p.id, p]));
 
     const resultado = itemsAgrupados
       .map((grupo) => {
@@ -489,7 +491,7 @@ router.get('/rentabilidad', requirePermiso('REPORTES:VER'), async (req: Request,
 
         const totalVendido = Number(grupo._sum.total ?? 0);
         const unidadesVendidas = Number(grupo._sum.cantidad ?? 0);
-        const costoTotal = unidadesVendidas * Number(producto.costo_promedio);
+        const costoTotal = unidadesVendidas * Number(producto.costo_promedio ?? 0);
         const ganancia = totalVendido - costoTotal;
         const margenPct = totalVendido > 0 ? (ganancia / totalVendido) * 100 : 0;
 
@@ -524,7 +526,7 @@ router.get('/rentabilidad', requirePermiso('REPORTES:VER'), async (req: Request,
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al generar reporte de rentabilidad' });
   }
 });
@@ -548,7 +550,7 @@ router.get('/desperdicio', requirePermiso('REPORTES:VER'), async (req: Request, 
     // Entradas del período (COMPRA)
     const entradas = await prisma.stockMovimiento.groupBy({
       by: ['producto_id'],
-      where: { ...movWhere, tipo_movimiento: 'ENTRADA', referencia_tipo: { in: ['COMPRA', null] } },
+      where: { ...movWhere, tipo_movimiento: 'ENTRADA' },
       _sum: { cantidad: true },
     });
 
@@ -570,28 +572,28 @@ router.get('/desperdicio', requirePermiso('REPORTES:VER'), async (req: Request, 
     });
 
     // Construir mapa de stock real
-    const stockRealMap = new Map(stockReal.map((s) => [s.producto_id, Number(s._sum.cantidad ?? 0)]));
+    const stockRealMap = new Map<number | null, number>(stockReal.map((s) => [s.producto_id, Number(s._sum.cantidad ?? 0)]));
 
     // Construir mapa de entradas y salidas del período
-    const entradasMap = new Map(entradas.map((e) => [e.producto_id, Number(e._sum.cantidad ?? 0)]));
-    const salidasMap = new Map(salidas.map((s) => [s.producto_id, Number(s._sum.cantidad ?? 0)]));
+    const entradasMap = new Map<number | null, number>(entradas.map((e) => [e.producto_id, Number(e._sum?.cantidad ?? 0)]));
+    const salidasMap = new Map<number | null, number>(salidas.map((s) => [s.producto_id, Number(s._sum?.cantidad ?? 0)]));
 
     // Unión de todos los productos presentes
     const todosProductoIds = new Set([...entradasMap.keys(), ...salidasMap.keys()]);
 
     const productos = await prisma.producto.findMany({
-      where: { id: { in: Array.from(todosProductoIds) }, activo: true },
+      where: { id: { in: Array.from(todosProductoIds).filter((id): id is number => id !== null) }, activo: true },
       select: { id: true, nombre: true, costo_promedio: true, unidad_medida: true },
     });
 
     const resultado = productos
       .map((prod) => {
-        const entradaPeriodo = entradasMap.get(prod.id) ?? 0;
-        const salidaPeriodo = salidasMap.get(prod.id) ?? 0;
-        const saldoTeorico = entradaPeriodo - salidaPeriodo;
-        const stockActual = stockRealMap.get(prod.id) ?? 0;
-        const diferencia = saldoTeorico - stockActual;
-        const valorPerdida = diferencia > 0 ? diferencia * Number(prod.costo_promedio) : 0;
+        const entradaPeriodo: number = entradasMap.get(prod.id) ?? 0;
+        const salidaPeriodo: number = salidasMap.get(prod.id) ?? 0;
+        const saldoTeorico: number = entradaPeriodo - salidaPeriodo;
+        const stockActual: number = stockRealMap.get(prod.id) ?? 0;
+        const diferencia: number = saldoTeorico - stockActual;
+        const valorPerdida = diferencia > 0 ? diferencia * Number(prod.costo_promedio ?? 0) : 0;
 
         return {
           producto_id: prod.id,
@@ -622,7 +624,7 @@ router.get('/desperdicio', requirePermiso('REPORTES:VER'), async (req: Request, 
       },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al generar reporte de desperdicio' });
   }
 });

@@ -3,6 +3,7 @@ import { body } from 'express-validator';
 import { prisma } from '../lib/prisma';
 import { authenticate, requirePermiso } from '../middleware/auth';
 import { handleValidation } from '../middleware/validate';
+import { logger } from '../lib/logger';
 
 const router = Router();
 router.use(authenticate);
@@ -18,7 +19,7 @@ router.get('/', requirePermiso('ROLES:VER'), async (req: Request, res: Response)
     });
     res.json({ success: true, data: roles });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener roles' });
   }
 });
@@ -28,7 +29,7 @@ router.get('/permisos', requirePermiso('ROLES:VER'), async (req: Request, res: R
     const permisos = await prisma.permiso.findMany({ orderBy: [{ modulo: 'asc' }, { codigo: 'asc' }] });
     res.json({ success: true, data: permisos });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener permisos' });
   }
 });
@@ -45,7 +46,7 @@ router.get('/:id', requirePermiso('ROLES:VER'), async (req: Request, res: Respon
     }
     res.json({ success: true, data: rol });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al obtener rol' });
   }
 });
@@ -72,7 +73,7 @@ router.post(
       });
       res.status(201).json({ success: true, message: 'Rol creado', data: rol });
     } catch (error) {
-      console.error(error);
+      logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
       res.status(500).json({ success: false, message: 'Error al crear rol' });
     }
   }
@@ -100,7 +101,7 @@ router.put('/:id', requirePermiso('ROLES:EDITAR'), async (req: Request, res: Res
 
     res.json({ success: true, message: 'Rol actualizado', data: rol });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al actualizar rol' });
   }
 });
@@ -116,7 +117,7 @@ router.delete('/:id', requirePermiso('ROLES:ELIMINAR'), async (req: Request, res
     await prisma.rol.update({ where: { id }, data: { activo: false } });
     res.json({ success: true, message: 'Rol desactivado' });
   } catch (error) {
-    console.error(error);
+    logger.error('Error en ruta', { error: error instanceof Error ? error.message : String(error) });
     res.status(500).json({ success: false, message: 'Error al eliminar rol' });
   }
 });
