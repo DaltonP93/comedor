@@ -1,12 +1,14 @@
 # CLAUDE.md
 
+@docs/AI_HANDOFF.md
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Proyecto
 
 Sistema de ventas, reservas, menú, stock, libreta y pagos para comedor en Paraguay. Moneda: Guaraníes (PYG, enteros sin decimales). El README.md contiene la especificación funcional completa con 35 secciones de detalle.
 
-**Estado actual:** Todos los sprints (1–8) implementados y en producción. Ver sección "Roadmap" abajo para detalle de cada fase.
+**Estado actual:** El repositorio contiene los módulos y sprints descritos abajo, pero no se debe asumir que está en producción ni que las integraciones externas están habilitadas. Validar el estado real, las pruebas y las credenciales autorizadas antes de afirmarlo.
 
 **Demo:** `admin@comedor.com` / `admin123`
 
